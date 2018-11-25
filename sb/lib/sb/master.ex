@@ -3,12 +3,25 @@ defmodule SB.Master do
 
   use GenServer
 
-  def start_link(state, opts) do
-    GenServer.start_link(__MODULE__, state, opts)
+  require Logger
+
+  def start_link(opts) do
+    Logger.debug("Inside #{inspect __MODULE__} start_link with opts - #{inspect opts}")
+    GenServer.start_link(__MODULE__, opts)
   end
 
-  def init(_opts) do
+  def init(opts) do
+    Logger.debug("Inside #{inspect __MODULE__} init with opts - #{inspect opts}")
+    #send(self, :init)
+
     {:ok, %{}}
+  end
+
+  def handle_info(:init, _from, state) do
+    Logger.debug("Inside #{inspect __MODULE__} init")
+    init_network
+
+    {:reply, :ok, state}
   end
 
   def handle_call(_msg, _from, state) do
@@ -18,4 +31,14 @@ defmodule SB.Master do
   def handle_cast(_msg, state) do
     {:noreply, state}
   end
+
+  def init_network() do
+    for x <- 1..8 do
+      {:ok, node_pid} =
+        DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, [is_miner: true]})
+    end
+
+    Process.sleep(1000000000)
+  end
+
 end

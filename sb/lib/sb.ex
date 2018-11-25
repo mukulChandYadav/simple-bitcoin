@@ -8,9 +8,9 @@ defmodule SB do
   """
 
   def start(type, args) do
-    #Logger.debug("Inside start " <> inspect(__MODULE__) <> " " <> "with args: " <> inspect(args) <> "and type: " <> inspect(type))
+    Logger.debug("Inside start " <> inspect(__MODULE__) <> " " <> "with args: " <> inspect(args) <> "and type: " <> inspect(type))
     SB.Supervisor.start_link(args)
-    GenServer.call(SB.Master, {:process, args}, :infinity)
+    GenServer.call(SB.Master, {:init, args}, :infinity)
   end
 
 end
