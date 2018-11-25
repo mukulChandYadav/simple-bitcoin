@@ -16,7 +16,7 @@ defmodule SBTest do
 
 
   defp perform_test() do
-    #GenServer.call(SB.Master, {:init, []}, :infinity)
+    SB.Master.init_network()
     assert true
   end
 

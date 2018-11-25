@@ -6,19 +6,32 @@ defmodule SB.Node do
   require Logger
 
   def start_link(state, opts) do
-    Logger.debug("Inside Node start_link of #{inspect self}" )
+    Logger.debug("Inside #{inspect __MODULE__} Node start_link of #{inspect self}")
     GenServer.start_link(__MODULE__, state, opts)
+  end
+
+  def start_link(opts) do
+    Logger.debug("Inside #{inspect __MODULE__} Node start_link with opts - #{inspect opts}")
+    ret_val = GenServer.start_link(__MODULE__, opts)
+    Logger.debug("Inside #{inspect __MODULE__} ret val - #{inspect ret_val}")
+    ret_val
   end
 
   def init(opts) do
 
-    Logger.debug("Inside Node init of #{inspect self}" )
+    Logger.debug("Inside #{inspect __MODULE__} Node init of #{inspect self} with opts - #{inspect opts}")
 
-    node_state = %SB.NodeInfo{node_id: self, is_miner: opts.is_miner}
-    if(opts.is_miner)  do
-      Registry.register(SB.Registry.Miners, "miner", node_state)
+    is_miner = Map.get(opts, :is_miner)
+    Logger.debug("Inside #{inspect __MODULE__} node state -  and is_miner - #{inspect is_miner}")
+    node_state = %SB.NodeInfo{node_id: self, is_miner: is_miner}
+
+
+    if(is_miner == true)  do
+      Logger.debug("Inside #{inspect __MODULE__} miner true block")
+      Registry.register(SB.Registry.Miners, :miner, node_state)
     end
     send(self, :mine)
+    Logger.debug("Inside #{inspect __MODULE__} Node state - #{inspect node_state} for #{inspect self}")
     {:ok, node_state}
   end
 

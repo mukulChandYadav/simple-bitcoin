@@ -7,7 +7,9 @@ defmodule SB.Master do
 
   def start_link(opts) do
     Logger.debug("Inside #{inspect __MODULE__} start_link with opts - #{inspect opts}")
-    GenServer.start_link(__MODULE__, opts)
+    return_val = GenServer.start_link(__MODULE__, :ok, opts)
+    Logger.debug("Inside #{inspect __MODULE__} GenServer start return val #{inspect return_val}")
+    return_val
   end
 
   def init(opts) do
@@ -33,9 +35,12 @@ defmodule SB.Master do
   end
 
   def init_network() do
+    Logger.debug("Inside #{inspect __MODULE__}  init network")
+
     for x <- 1..8 do
       {:ok, node_pid} =
-        DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, [is_miner: true]})
+        DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, %{is_miner: true}})
+      Logger.debug("Inside #{inspect __MODULE__}  Miner - #{inspect node_pid}")
     end
 
     Process.sleep(1000000000)

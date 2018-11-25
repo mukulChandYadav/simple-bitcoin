@@ -19,6 +19,8 @@ defmodule SB.Supervisor do
       {Task.Supervisor, name: SB.MiningTaskSupervisor}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    ret_val = Supervisor.init(children, strategy: :one_for_one)
+    Logger.debug("Inside #{inspect __MODULE__} Supervisor init return val #{inspect ret_val}")
+    ret_val
   end
 end
