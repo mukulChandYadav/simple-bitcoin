@@ -15,6 +15,9 @@ defmodule SB.Master do
   def init(opts) do
     Logger.debug("Inside #{inspect __MODULE__} init with opts - #{inspect opts}")
     #send(self, :init)
+    miners_table = :ets.new(:ets_miners, [:public, :set, :named_table])
+    trans_table = :ets.new(:ets_trans_repo, [:public, :set, :named_table])
+    mine_job_table = :ets.new(:ets_mine_jobs, [:public, :set, :named_table])
 
     {:ok, %{}}
   end
@@ -41,6 +44,7 @@ defmodule SB.Master do
       {:ok, node_pid} =
         DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, %{is_miner: true}})
       Logger.debug("Inside #{inspect __MODULE__}  Miner - #{inspect node_pid}")
+      send(node_pid, :mine)
     end
 
     Process.sleep(1000000000)

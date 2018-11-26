@@ -1,4 +1,4 @@
-defmodule CryptoHandle do
+defmodule SB.CryptoHandle do
   @n :binary.decode_unsigned(<<
        0xFF,
        0xFF,
@@ -65,7 +65,7 @@ defmodule CryptoHandle do
     |> elem(0)
   end
 
-  defp hash(data, type) do
+  def hash(data, type) do
     :crypto.hash(type, data)
   end
 
@@ -129,4 +129,4 @@ defmodule CryptoHandle do
   end
 end
 
-CryptoHandle.main()
+#CryptoHandle.main()
