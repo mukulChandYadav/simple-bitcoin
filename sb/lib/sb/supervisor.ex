@@ -12,10 +12,15 @@ defmodule SB.Supervisor do
 
     children = [
       {Registry, keys: :unique, name: SB.Registry.Miners},
-      {SB.Master, name: SB.Master, args: args},
-      {DynamicSupervisor, name: SB.NodeSupervisor, strategy: :one_for_one}
+      {Registry, keys: :unique, name: SB.Registry.TransactionRepo},
+      {Registry, keys: :unique, name: SB.Registry.NodeInfo},
+      {SB.Master, name: SB.Master},
+      {DynamicSupervisor, name: SB.NodeSupervisor, strategy: :one_for_one},
+      {Task.Supervisor, name: SB.MiningTaskSupervisor}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    ret_val = Supervisor.init(children, strategy: :one_for_one)
+    Logger.debug("Inside #{inspect __MODULE__} Supervisor init return val #{inspect ret_val}")
+    ret_val
   end
 end

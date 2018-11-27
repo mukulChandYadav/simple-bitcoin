@@ -127,23 +127,6 @@ defmodule CryptoHandle do
     generate_private_key()
     |> generate_address
     |> IO.inspect()
-
-    # private_key = '3cd0560f5b27591916c643a0b7aa69d03839380a738d2e912990dcc573715d2c'
-
-    # content = Poison.encode!(%{init: "Hello World!"})
-
-    # pid =
-    #   self()
-    #   |> :erlang.pid_to_list()
-    #   |> to_string
-    #   |> String.slice(1..-2)
-
-    # path = "./lib/data/" <> pid <> "txid_sk.json"
-
-    # File.write!(
-    #   path,
-    #   content
-    # )
   end
 end
 
