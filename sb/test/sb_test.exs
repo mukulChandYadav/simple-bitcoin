@@ -11,7 +11,7 @@ defmodule SBTest do
 
   @tag timeout: 100000000
   test "start network" do
-    perform_test
+    perform_test()
   end
 
 

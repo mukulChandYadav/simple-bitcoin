@@ -69,6 +69,12 @@ defmodule SB.CryptoHandle do
     :crypto.hash(type, data)
   end
 
+  def encoded_hash(data, type) do
+    hash(data, type)
+    |> Base.encode16()
+    |> String.downcase()
+  end
+
   def generate_public_hash(private_key) do
     private_key
     |> generate_public_key

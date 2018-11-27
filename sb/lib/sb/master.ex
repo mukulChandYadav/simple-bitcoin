@@ -40,7 +40,8 @@ defmodule SB.Master do
   def init_network() do
     Logger.debug("Inside #{inspect __MODULE__}  init network")
 
-    for x <- 1..8 do
+    num_miners = 3#8
+    for x <- 1..num_miners do
       {:ok, node_pid} =
         DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, %{is_miner: true}})
       Logger.debug("Inside #{inspect __MODULE__}  Miner - #{inspect node_pid}")
