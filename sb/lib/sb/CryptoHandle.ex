@@ -65,7 +65,7 @@ defmodule CryptoHandle do
     |> elem(0)
   end
 
-  defp hash(data, type) do
+  def hash(data, type) do
     :crypto.hash(type, data)
   end
 
@@ -116,17 +116,35 @@ defmodule CryptoHandle do
     private_key
     |> generate_public_hash
     |> encode_prefix_hash_checksum(version)
-    |> encode
+
+    # |> encode
   end
 
   def main do
-    encode(<<0x00>> <> <<0x00>> <> "hello")
-    |> IO.inspect()
+    # encode(<<0x00>> <> <<0x00>> <> "hello")
+    # |> IO.inspect()
 
     generate_private_key()
     |> generate_address
     |> IO.inspect()
+
+    # private_key = '3cd0560f5b27591916c643a0b7aa69d03839380a738d2e912990dcc573715d2c'
+
+    # content = Poison.encode!(%{init: "Hello World!"})
+
+    # pid =
+    #   self()
+    #   |> :erlang.pid_to_list()
+    #   |> to_string
+    #   |> String.slice(1..-2)
+
+    # path = "./lib/data/" <> pid <> "txid_sk.json"
+
+    # File.write!(
+    #   path,
+    #   content
+    # )
   end
 end
 
-CryptoHandle.main()
+IO.inspect(CryptoHandle.main())
