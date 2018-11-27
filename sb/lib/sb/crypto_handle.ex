@@ -122,12 +122,13 @@ defmodule SB.CryptoHandle do
     private_key
     |> generate_public_hash
     |> encode_prefix_hash_checksum(version)
-    |> encode
+
+    # |> encode
   end
 
   def main do
-    encode(<<0x00>> <> <<0x00>> <> "hello")
-    |> IO.inspect()
+    # encode(<<0x00>> <> <<0x00>> <> "hello")
+    # |> IO.inspect()
 
     generate_private_key()
     |> generate_address
@@ -135,4 +136,4 @@ defmodule SB.CryptoHandle do
   end
 end
 
-#CryptoHandle.main()
+IO.inspect(SB.CryptoHandle.main())
