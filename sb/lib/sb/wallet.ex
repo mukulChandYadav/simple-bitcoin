@@ -14,15 +14,15 @@ defmodule SB.Wallet do
   def update_wallet_with_block(wallet, block) do
     #TODO
     updated_wallet = wallet
-    Logger.debug("Inside #{inspect __MODULE__} Update wallet. Before updated blocks #{inspect updated_wallet.blocks}")
+    #Logger.debug("Inside #{inspect __MODULE__} Update wallet. Before updated blocks #{inspect updated_wallet.blocks}")
     updated_blocks = (updated_wallet.blocks ++ [block])
-    Logger.debug("Inside #{inspect __MODULE__} Update wallet. After updated blocks #{inspect updated_blocks}")
+    #Logger.debug("Inside #{inspect __MODULE__} Update wallet. After updated blocks #{inspect updated_blocks}")
     #TODO Add block present in wallet blocks check
     updated_wallet = %{updated_wallet | blocks: updated_blocks}
 
     #TODO Update balance from transaction for blocks on this wallet
     updated_wallet = update_wallet_balance(updated_wallet, block)
-    Logger.debug("Inside #{inspect __MODULE__} Update wallet. #{inspect updated_wallet.blocks} with block - #{inspect block.block_id}")
+    #Logger.debug("Inside #{inspect __MODULE__} Update wallet. #{inspect updated_wallet.blocks} with block - #{inspect block.block_id}")
     updated_wallet
   end
 

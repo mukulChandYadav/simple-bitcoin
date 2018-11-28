@@ -50,12 +50,12 @@ defmodule SB.Node do
 
     #TODO Add generated blocks to owner nodes
     num_blocks_mined = length(state.wallet.blocks)
-    Logger.debug("Inside #{inspect __MODULE__} Num blocks mined by #{inspect state.node_id} node - #{inspect num_blocks_mined}")
+    Logger.debug("Inside #{inspect __MODULE__} Num blocks mined by #{inspect state.node_id} node is - #{inspect num_blocks_mined}")
 
     #TODO: Add new transaction to new block
     new_tx = nil
 
-    if(num_blocks_mined < 5) do
+    if(num_blocks_mined < 3) do
       block_header_hash = ""
       curr_nonce =
         try do
@@ -113,7 +113,9 @@ defmodule SB.Node do
 
     #TODO Add to wallet if it corresponds to this node
     new_state = update_wallet(new_state)
-    Logger.debug("Inside #{inspect __MODULE__} New block registered after Update wallet. After updated blocks #{inspect new_state.wallet.blocks}")
+
+    block_ids = Enum.map(new_state.wallet.blocks, fn x -> x.block_id end)
+    Logger.debug("Inside #{inspect __MODULE__} New block registered after Update wallet of #{inspect state.node_id}. After update blocks in wallet - #{inspect block_ids}")
 
     if(Process.alive?(mine_job)) do
       ###Logger.debug("Inside #{inspect __MODULE__} Killing mine job - #{inspect mine_job} of node - #{inspect self}")
@@ -172,7 +174,7 @@ defmodule SB.Node do
   end
 
   defp update_wallet(new_state) do
-    Logger.debug("Inside #{inspect __MODULE__} Update wallet. Received block - #{inspect new_state.block} for verification to #{inspect new_state.node_id}")
+    Logger.debug("Inside #{inspect __MODULE__} Update wallet. Received block - #{inspect new_state.block.block_id} for verification to #{inspect new_state.node_id}")
 
     block_mined_by_this_node_with_new_block_id =
       try do
@@ -183,18 +185,19 @@ defmodule SB.Node do
           nil
       end
 
-    Logger.debug("Inside #{inspect __MODULE__} Update wallet. Block mined by #{inspect new_state.node_id} node - #{inspect block_mined_by_this_node_with_new_block_id}")
+    #Logger.debug("Inside #{inspect __MODULE__} Update wallet. Block mined by #{inspect new_state.node_id} node - #{inspect block_mined_by_this_node_with_new_block_id}")
 
     # Relying on timestamp for confirming that approved block is mined by this node
     #TODO Revert to signature verification later
     new_state = if ((block_mined_by_this_node_with_new_block_id != nil) && (new_state.block.timestamp == block_mined_by_this_node_with_new_block_id.timestamp)) do
       Logger.debug("Inside #{inspect __MODULE__} Update wallet. #{inspect new_state.node_id} node #{inspect new_state.node_id} mined this-#{inspect new_state.block.block_id} block.")
       new_state = %{new_state | wallet: SB.Wallet.update_wallet_with_block(new_state.wallet, new_state.block)}
+      :ets.delete(:ets_mine_jobs, %{node_id: new_state.node_id, val: :block, id: new_state.block.block_id})
+      new_state
     else
       Logger.debug("Inside #{inspect __MODULE__} Update wallet. #{inspect new_state.node_id} node #{inspect new_state.node_id} did not mine this-#{inspect new_state.block.block_id} block")
       new_state
     end
-
     new_state
   end
 
