@@ -1,5 +1,5 @@
 defmodule SB.UtxoInfo do
-  defstruct tx_id: nil, out_index: -1, value: 0, scriptPubKey: nil, key: nil
+  defstruct tx_id: nil, out_index: -1, value: 0, scriptPubKey: nil
 
   # outputs = [
   #   {

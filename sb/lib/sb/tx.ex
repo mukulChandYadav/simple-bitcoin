@@ -1,16 +1,80 @@
 defmodule SB.Tx do
   require Logger
 
-  # def create_transaction(bc_addr, amount) do
-  #   # TODO: Search for this amount in UTXO and add the utxo map to a list
+  def get_pid do
+    self()
+    |> :erlang.pid_to_list()
+    |> to_string
+    |> String.slice(1..-2)
+  end
 
-  #   success = create_transaction_block(utxo_list, bc_addr, amount)
+  def get_json(filename) do
+    with {:ok, body} <- File.read(filename), {:ok, json} <- Poison.decode(body), do: {:ok, json}
+  end
 
-  #   case success do
-  #     true -> Logger.debug("Transaction block created")
-  #     false -> Logger.debug("Transaction block can't be created")
-  #   end
-  # end
+  def append_json(type, path, content) when type == "utxo" do
+    tx_id = content[:hash]
+    output_index = content[:out_index]
+
+    content = Map.drop(content, [:hash, :out_index])
+
+    {:ok, json} =
+      path
+      |> get_json
+
+    Logger.debug("content: " <> inspect(content))
+
+    case Map.has_key?(json, tx_id) do
+      true ->
+        {_, appended_submap} =
+          Map.get_and_update!(json, tx_id, fn curr_map ->
+            {curr_map, Map.put(curr_map, output_index, content)}
+          end)
+
+        appended_submap
+
+      false ->
+        out_index_map = Map.put(%{}, output_index, content)
+        Map.put(json, tx_id, out_index_map)
+    end
+  end
+
+  def append_json(_, path, content) do
+    tx_id = content[:hash]
+
+    {:ok, json} =
+      path
+      |> get_json
+
+    Map.put(json, tx_id, content)
+  end
+
+  def write_json(type, content) when content == %{} do
+    Logger.debug("---------Content empty--------")
+    Logger.debug("Type: " <> inspect(type))
+
+    path = "./lib/data/" <> get_pid() <> type <> ".json"
+
+    json_encoded_content =
+      %{}
+      |> Poison.encode!()
+
+    File.write!(path, json_encoded_content)
+  end
+
+  def write_json(type, content) do
+    path = "./lib/data/" <> get_pid() <> type <> ".json"
+
+    Logger.debug("---------Content not empty--------")
+    Logger.debug("Content: " <> inspect(content))
+    Logger.debug("Type: " <> inspect(type))
+
+    json_encoded_content =
+      append_json(type, path, content)
+      |> Poison.encode!()
+
+    File.write!(path, json_encoded_content)
+  end
 
   defp get_pub_key_hash(bc_addr) do
     String.slice(bc_addr, 2..-9)
@@ -53,10 +117,9 @@ defmodule SB.Tx do
 
   #   script_len =
   #     scriptPubKey
-  #     |> Integer.parse(16)
-  #     |> elem(0)
-  #     |> :binary.encode_unsigned()
-  #     |> byte_size
+  #         |> Binary.from_hex()
+  #         |> byte_size()
+  #         |> to_string()
 
   #   outputs = [outputs | %{value: amount, script_len: script_len, scriptPubKey: scriptPubKey}]
 
@@ -78,10 +141,9 @@ defmodule SB.Tx do
   #     Enum.map(utxos, fn utxo ->
   #       script_len =
   #         utxo[:scriptPubKey]
-  #         |> Integer.parse(16)
-  #         |> elem(0)
-  #         |> :binary.encode_unsigned()
-  #         |> byte_size
+  #         |> Binary.from_hex()
+  #         |> byte_size()
+  #         |> to_string()
 
   #       %{
   #         prev_hash: utxo[:tx_id],
@@ -216,7 +278,7 @@ defmodule SB.Tx do
     # Tx content
     # hash: nil, version: "01000000", num_inputs: 0, inputs: [], num_outputs: 0, outputs: []
 
-    transaction_map = %{
+    %{
       hash: trans_hash,
       version: version,
       num_inputs: tx_in_count,
@@ -231,7 +293,30 @@ defmodule SB.Tx do
       ]
     }
   end
+
+  def main do
+    write_json("tx", %{})
+    write_json("utxo", %{})
+
+    content = coinbase_transaction()
+    Logger.debug("Content: " <> inspect(content))
+
+    write_json("tx", content)
+
+    # Testing utxo
+    op = Enum.at(content[:outputs], 0)
+
+    utxo_content =
+      Map.put(%{}, :hash, content[:hash])
+      |> Map.put(:out_index, 0)
+      |> Map.put(:value, op[:value])
+      |> Map.put(:scriptPubKey, op[:scriptPubKey])
+
+    write_json("utxo", utxo_content)
+  end
 end
 
-SB.Tx.coinbase_transaction()
+SB.Tx.main()
 |> IO.inspect()
+
+IO.inspect("Main executed")
