@@ -8,7 +8,7 @@ defmodule SB.Supervisor do
   end
 
   def init(args) do
-    Logger.debug("Inside init " <> inspect(__MODULE__) <> " " <> "with args: " <> inspect(args))
+    #Logger.debug("Inside init " <> inspect(__MODULE__) <> " " <> "with args: " <> inspect(args))
 
     children = [
       {Registry, keys: :unique, name: SB.Registry.Miners},
@@ -20,7 +20,7 @@ defmodule SB.Supervisor do
     ]
 
     ret_val = Supervisor.init(children, strategy: :one_for_one)
-    Logger.debug("Inside #{inspect __MODULE__} Supervisor init return val #{inspect ret_val}")
+    #Logger.debug("Inside #{inspect __MODULE__} Supervisor init return val #{inspect ret_val}")
     ret_val
   end
 end
