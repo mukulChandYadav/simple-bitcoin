@@ -69,9 +69,8 @@ defmodule CryptoHandle do
     :crypto.hash(type, data)
   end
 
-  def generate_public_hash(private_key) do
-    private_key
-    |> generate_public_key
+  def generate_public_hash(public_key) do
+    public_key
     |> hash(:sha256)
     |> hash(:ripemd160)
   end
@@ -112,9 +111,9 @@ defmodule CryptoHandle do
     version <> data <> checksum(version, data)
   end
 
-  def generate_address(private_key, version \\ <<0x00>>) do
-    private_key
-    |> generate_public_hash
+  def generate_address(public_key, version \\ <<0x00>>) do
+    public_key
+    |> generate_public_hash()
     |> encode_prefix_hash_checksum(version)
 
     # |> encode
@@ -124,10 +123,46 @@ defmodule CryptoHandle do
     # encode(<<0x00>> <> <<0x00>> <> "hello")
     # |> IO.inspect()
 
-    generate_private_key()
-    |> generate_address
+    private = generate_private_key()
+    IO.inspect("private")
+    IO.inspect(private)
+    public = generate_public_key(private)
+
+    IO.inspect("Address: ")
+
+    public
+    |> generate_address()
     |> IO.inspect()
+
+    IO.inspect("Keys")
+    IO.inspect(private)
+    IO.inspect(public)
+
+    # {public_key, private_key} =
+    #   with {public_key, private_key} <- :crypto.generate_key(:ecdh, :secp256k1),
+    #        do: {Base.encode16(public_key), Base.encode16(private_key)}
+
+    # {:ok, private} = private_key |> Base.decode16()
+
+    signature =
+      :crypto.sign(
+        :ecdsa,
+        :sha256,
+        "asd",
+        [private, :secp256k1]
+      )
+
+    # {:ok, public} = public_key |> Base.decode16()
+
+    :crypto.verify(
+      :ecdsa,
+      :sha256,
+      "asd",
+      signature,
+      [public, :secp256k1]
+    )
   end
 end
 
 IO.inspect(CryptoHandle.main())
+IO.inspect("Main executed")

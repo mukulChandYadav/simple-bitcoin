@@ -19,7 +19,17 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at [https://hexdocs.pm/sb](https://hexdocs.pm/sb).
 
-
 ##Execute
 
 mix test
+
+TODO:
+Stackbootup logic for wallet
+Wallet APIs to be exposed
+Transaction integration
+Transaction and Block verification and validation
+
+Test Cases for each functionality:
+Mining logic
+Signature verification of transaction and blockchain
+Transaction between two parties
