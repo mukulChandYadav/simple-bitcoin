@@ -25,11 +25,12 @@ mix test
 
 TODO:
 Stackbootup logic for wallet
+
 Wallet APIs to be exposed
-Transaction integration
-Transaction and Block verification and validation
+    Transaction integration
+    Transaction and Block verification and validation
 
 Test Cases for each functionality:
 Mining logic
-Signature verification of transaction and blockchain
-Transaction between two parties
+    Signature verification of transaction and blockchain
+    Transaction between two parties

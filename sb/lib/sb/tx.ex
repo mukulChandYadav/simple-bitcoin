@@ -63,27 +63,33 @@ defmodule SB.Tx do
     Logger.debug("---------Content empty--------")
     Logger.debug("Type: " <> inspect(type))
 
-    path = "./lib/data/" <> get_pid() <> type <> ".json"
+    path = Path.absname "./lib/data/"
+    Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    filename = get_pid() <> type <> ".json"
+    :ok = File.mkdir_p!(path)
 
     json_encoded_content =
       %{}
       |> Poison.encode!()
 
-    File.write!(path, json_encoded_content)
+    File.write!(path <> filename, json_encoded_content)
   end
 
   def write_json(type, content) do
-    path = "./lib/data/" <> get_pid() <> type <> ".json"
+    path = Path.absname "./lib/data/"
+    Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
+    filename = get_pid() <> type <> ".json"
+    :ok = File.mkdir_p!(path)
 
     Logger.debug("---------Content not empty--------")
     Logger.debug("Content: " <> inspect(content))
     Logger.debug("Type: " <> inspect(type))
 
     json_encoded_content =
-      append_json(type, path, content)
+      append_json(type, path <> filename, content)
       |> Poison.encode!()
 
-    File.write!(path, json_encoded_content)
+    File.write!(path <> filename, json_encoded_content)
   end
 
   defp string_slice(bc_addr, from, to) do
@@ -341,7 +347,7 @@ defmodule SB.Tx do
 
     # transaction = (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time <> sigHash)
 
-    path = "./lib/data/" <> get_pid() <> "keys.json"
+    path = Path.absname("./lib/data/") <> get_pid() <> "keys.json"
 
     {:ok, keys_map} =
       path
@@ -391,8 +397,8 @@ defmodule SB.Tx do
 
         signature =
           binary_transaction
-          |> CryptoHandle.hash(:sha256)
-          |> CryptoHandle.hash(:sha256)
+          |> SB.CryptoHandle.hash(:sha256)
+          |> SB.CryptoHandle.hash(:sha256)
           |> Base.encode16(case: :upper)
           |> generate_signature(private_key)
 
@@ -521,15 +527,15 @@ defmodule SB.Tx do
     value = String.duplicate("0", pad) <> value
 
     # The scriptPubKey saying where the coins are going.
-    private_key = CryptoHandle.generate_private_key()
+    private_key = SB.CryptoHandle.generate_private_key()
 
     public_key =
       private_key
-      |> CryptoHandle.generate_public_key()
+      |> SB.CryptoHandle.generate_public_key()
 
     pub_key_hash =
       public_key
-      |> CryptoHandle.generate_address()
+      |> SB.CryptoHandle.generate_address()
       |> Base.encode16()
       |> string_slice(2, -9)
 
@@ -578,8 +584,8 @@ defmodule SB.Tx do
 
     trans_hash =
       transaction
-      |> CryptoHandle.hash(:sha256)
-      |> CryptoHandle.hash(:sha256)
+      |> SB.CryptoHandle.hash(:sha256)
+      |> SB.CryptoHandle.hash(:sha256)
       |> Base.encode16()
 
     write_json("keys", %{

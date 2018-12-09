@@ -3,17 +3,28 @@ defmodule SB.Node do
 
 
   use GenServer
+
+  use GenEvent
+
   require Logger
 
-  def start_link(state, opts) do
-    #####Logger.debug("Inside #{inspect __MODULE__} Node start_link of #{inspect self}")
-    GenServer.start_link(__MODULE__, state, opts)
-  end
+
+  #TODO:
+
+  #  def start_link(state, opts) do
+  #    #####Logger.debug("Inside #{inspect __MODULE__} Node start_link of #{inspect self}")
+  #    GenServer.start_link(__MODULE__, state, opts)
+  #  end
 
   def start_link(opts) do
     #####Logger.debug("Inside #{inspect __MODULE__} Node start_link with opts - #{inspect opts}")
     ret_val = GenServer.start_link(__MODULE__, opts)
     #####Logger.debug("Inside #{inspect __MODULE__} ret val - #{inspect ret_val}")
+
+    # Add transaction publish handler
+    {:ok, pid} = GenEvent.start([])
+    GenEvent.add_handler(pid, SB.Node, [])
+
     ret_val
   end
 
@@ -36,16 +47,30 @@ defmodule SB.Node do
       #Registry.register(SB.Registry.NodeInfo, node_state.node_id, %{nonce: 0})
       :ets.insert(:ets_mine_jobs, {%{node_id: node_state.node_id, val: :nonce}, 0})
     end
+
+    {:ok, wallet_pid} = GenServer.start_link(SB.Wallet, %{secret_key: secret_key, public_key: public_key, owner_pid: self()})
+
+    #Logger.error("wallet -#{inspect  GenServer.call(wallet_pid, :get_state_info)}")
+    {:ok, wallet_state} = GenServer.call(wallet_pid, :get_state_info)
+    node_state = put_in(node_state.wallet, wallet_state)
     #send(self, :mine)
     #####Logger.debug("Inside #{inspect __MODULE__} Node state - #{inspect node_state} for #{inspect self}")
     {:ok, node_state}
+  end
+
+  # Process new transaction published handler for miners
+  def handle_event({:new_transaction, tx}, state) do
+    Logger.debug "Received new transaction message: '#{inspect tx}'"
+    #Invoke block chain creation process
+    send(self, {:mine, tx})
+    {:ok, state}
   end
 
   def handle_call(_msg, _from, state) do
     {:reply, :ok, state}
   end
 
-  def handle_info(:mine, state) do
+  def handle_info({:mine, tx_to_be_processed}, state) do
     ##Logger.debug("Inside #{inspect __MODULE__} Mine block Node state - #{inspect state}")
 
     #TODO Add generated blocks to owner nodes
@@ -71,7 +96,22 @@ defmodule SB.Node do
       add_task_to_table(mining_task.pid, state)
 
     else
-      #TODO: Pick new transaction from pool
+      if(tx_to_be_processed != nil)do
+        block_header_hash = "" #TODO
+        curr_nonce =
+          try do
+            [{_, curr_nonce}] = :ets.lookup(:ets_mine_jobs, %{node_id: state.node_id, val: :nonce})
+            #Registry.lookup(SB.Registry.NodeInfo, %{node_id: state.node_id, val: :nonce})
+            curr_nonce
+          rescue
+            e in [MatchError] ->
+              %{nonce: 0}
+          end
+
+        mining_task = Task.Supervisor.async(SB.MiningTaskSupervisor, SB.Node, :mine, [4, block_header_hash, state.block, self, curr_nonce, new_tx])
+
+        add_task_to_table(mining_task.pid, state)
+      end
     end
 
     #####Logger.debug("Inside #{inspect __MODULE__} End of mine block for Node state - #{inspect state} for #{inspect self}")
@@ -122,9 +162,13 @@ defmodule SB.Node do
       Process.exit(mine_job, :normal)
     end
 
+    #Delete the processed transaction from queue
+    purge_old_tx(block.tx)
+
     # Trigger next mine operation
     ##Logger.debug("Inside #{inspect __MODULE__} Trigger next mine operation using block - #{inspect block}")
-    Task.async(__MODULE__, :schedule_work_after, [:mine, self, 1000])
+    new_tx_to_process = get_new_transaction_from_queue()
+    Task.async(__MODULE__, :schedule_work_after, [{:mine, new_tx_to_process}, self, 1000])
     {:noreply, new_state}
   end
 
@@ -132,6 +176,51 @@ defmodule SB.Node do
     {:noreply, state}
   end
 
+  defp purge_old_tx(tx) do
+    out = :ets.lookup(:ets_trans_repo, :new_tranx)
+    ####Logger.debug("#{inspect __MODULE__} Get Miners : #{inspect out} ")
+    map = if(out == nil) do
+      %{}
+    else
+      [{_, map}] = out
+      map
+    end
+    :ets.insert(:ets_trans_repo, {:new_tranx, Map.delete(map, tx.id)})
+  end
+
+  defp get_new_transaction_from_queue() do
+    get_new_transaction_from_queue(nil)
+  end
+
+  defp get_new_transaction_from_queue(tx) do
+
+    out = :ets.lookup(:ets_trans_repo, :new_tranx)
+    ####Logger.debug("#{inspect __MODULE__} Get Miners : #{inspect out} ")
+    map = if(out == nil) do
+      out
+    else
+      [{_, map}] = out
+      map
+    end
+
+    keys = Map.keys(map)
+
+    queued_tx =
+      if(tx! = nil)do
+        if(keys! = []) do
+          Map.get(map, tx.id)
+        else
+          nil
+        end
+      else
+        if(keys! = []) do
+          Map.get(map, keys[0])
+        else
+          nil
+        end
+      end
+
+  end
 
   def mine(leading_zeros, hash_msg, base_block, parent_pid, nonce, new_tx) do #TODO Remove hash_msg arg
     hash_msg = if(base_block.prev_block == nil) do
@@ -155,7 +244,7 @@ defmodule SB.Node do
       :ets.insert(:ets_mine_jobs, {%{node_id: parent_pid, val: :block, id: new_block.block_id}, new_block})
 
       #Logger.debug("Inside #{inspect __MODULE__} mine. Node - #{inspect parent_pid} mined this block - #{inspect new_block}")
-      abc = :ets.lookup(:ets_mine_jobs, %{node_id: parent_pid, val: :block, id: new_block.block_id})
+      #abc = :ets.lookup(:ets_mine_jobs, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       #Registry.lookup(SB.Registry.NodeInfo, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       #Logger.debug("Inside #{inspect __MODULE__} mine. Registered block - #{inspect abc}")
 
@@ -227,7 +316,7 @@ defmodule SB.Node do
     end
   end
 
-  defp get_miners() do
+  def get_miners() do
 
     out = :ets.lookup(:ets_miners, :miners)
     ####Logger.debug("#{inspect __MODULE__} Get Miners : #{inspect out} ")
@@ -278,5 +367,13 @@ defmodule SB.Node do
     ###Logger.debug("After schedule #{inspect self()}")
     # # ###Logger.debug("Message timer #{inspect job_atom_id} for self: #{inspect Process.read_timer(message_timer)}")
   end
+
+
+  def handle_call({:perform_transaction, tx}, state) do
+    #TODO
+    GenServer.call(state.wallet.wallet_pid, {:create_transaction, tx})
+    {:reply, :ok, state}
+  end
+
 
 end

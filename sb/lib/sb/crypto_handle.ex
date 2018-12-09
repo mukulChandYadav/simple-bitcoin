@@ -1,4 +1,4 @@
-defmodule CryptoHandle do
+defmodule SB.CryptoHandle do
   @n :binary.decode_unsigned(<<
        0xFF,
        0xFF,
@@ -42,6 +42,12 @@ defmodule CryptoHandle do
 
   defp validate_key?(_) do
     false
+  end
+
+  def encoded_hash(data, type) do
+    hash(data, type)
+    |> Base.encode16()
+    |> String.downcase()
   end
 
   def generate_private_key do
@@ -164,5 +170,5 @@ defmodule CryptoHandle do
   end
 end
 
-IO.inspect(CryptoHandle.main())
+IO.inspect(SB.CryptoHandle.main())
 IO.inspect("Main executed")
