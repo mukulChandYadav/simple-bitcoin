@@ -40,14 +40,13 @@ defmodule SB.Tx do
   end
 
   def append_json(type, path, content) when type == "keys" do
-    tx_id = content[:hash]
-    content = Map.delete(content, :hash)
+    pid = get_pid()
 
     {:ok, json} =
       path
       |> get_json
 
-    Map.put(json, tx_id, content)
+    Map.put(json, pid, content)
   end
 
   def append_json(_, path, content) do
@@ -87,8 +86,8 @@ defmodule SB.Tx do
     File.write!(path, json_encoded_content)
   end
 
-  defp get_pub_key_hash(bc_addr) do
-    String.slice(bc_addr, 2..-9)
+  defp string_slice(bc_addr, from, to) do
+    String.slice(bc_addr, from..to)
   end
 
   defp generate_map_string(list) do
@@ -132,6 +131,68 @@ defmodule SB.Tx do
     )
   end
 
+  def generate_output_for_hash(output) do
+    # tx_out = value <> pk_script_length <> pk_script
+    # %{value: amount, script_len: script_len, scriptPubKey: scriptPubKey}
+
+    value = output[:value]
+    script_len = output[:script_len]
+    scriptPubKey = output[:scriptPubKey]
+
+    value <> script_len <> scriptPubKey
+  end
+
+  def generate_input_for_hash(input) do
+    prev_hash = input[:prev_hash]
+    prev_out_index = input[:prev_out_index]
+    script_len = input[:script_len]
+    scriptSig = input[:scriptSig]
+    sequence = input[:sequence]
+
+    prev_hash <> prev_out_index <> script_len <> scriptSig <> sequence
+  end
+
+  def generate_inputs(utxos) do
+    sequence =
+      "ffffffff"
+      |> String.upcase()
+
+    for utxo <- utxos do
+      Logger.debug("Current UTXO: " <> inspect(utxo))
+
+      script_len =
+        utxo[:scriptPubKey]
+        |> Binary.from_hex()
+        |> byte_size()
+        |> to_string()
+
+      script_len =
+        if String.length(script_len) == 1 do
+          "0" <> script_len
+        else
+          script_len
+        end
+
+      Logger.debug("Script len of current input's pubKeyScript: " <> inspect(script_len))
+
+      outpoint_hash = utxo[:hash]
+      outpoint_index = to_string(utxo[:out_index])
+      signature_script = utxo[:scriptPubKey]
+
+      Logger.debug("Outpoint hash: " <> inspect(outpoint_hash))
+      Logger.debug("Outpoint index: " <> inspect(outpoint_index))
+      Logger.debug("Signature script (Placehoded by pubKeyScript)" <> inspect(signature_script))
+
+      input = %{
+        prev_hash: outpoint_hash,
+        prev_out_index: outpoint_index,
+        script_len: script_len,
+        scriptSig: signature_script,
+        sequence: sequence
+      }
+    end
+  end
+
   def create_transaction_block(utxos, _, _) when utxos == [] do
     false
   end
@@ -147,6 +208,8 @@ defmodule SB.Tx do
     locktime = "00000000"
     sigHash = "01000000"
 
+    satoshi_multiplier = 100_000_000
+    amount = (amount * satoshi_multiplier) |> trunc()
     # Creating outputs
     # outputs = [
     #   {
@@ -156,12 +219,11 @@ defmodule SB.Tx do
     #   }
     # ]
     # tx_out = value <> pk_script_length <> pk_script
-
     outputs = []
 
     pub_key_hash =
       bc_addr
-      |> get_pub_key_hash
+      |> string_slice(2, -9)
 
     Logger.debug("PubKey Hash: " <> inspect(pub_key_hash))
 
@@ -239,72 +301,17 @@ defmodule SB.Tx do
     inputs_for_hash = []
     script_len = 0
 
-    inputs_with_hash =
-      for utxo <- utxos do
-        Logger.debug("Current UTXO: " <> inspect(utxo))
-
-        script_len =
-          utxo[:scriptPubKey]
-          |> Binary.from_hex()
-          |> byte_size()
-          |> to_string()
-
-        script_len =
-          if String.length(script_len) == 1 do
-            "0" <> script_len
-          else
-            script_len
-          end
-
-        Logger.debug("Script len of current input's pubKeyScript: " <> inspect(script_len))
-
-        outpoint_hash = utxo[:hash]
-        outpoint_index = to_string(utxo[:out_index])
-        signature_script = utxo[:scriptPubKey]
-
-        Logger.debug("Outpoint hash: " <> inspect(outpoint_hash))
-        Logger.debug("Outpoint index: " <> inspect(outpoint_index))
-        Logger.debug("Signature script (Placehoded by pubKeyScript)" <> inspect(signature_script))
-
-        input_for_hash =
-          outpoint_hash <> outpoint_index <> script_len <> signature_script <> sequence
-
-        Logger.debug("Input for hash: " <> inspect(String.length(input_for_hash)))
-
-        # Logger.debug(
-        #   "Input and Input for hash storage value: " <>
-        #     inspect({
-        #       inputs ++
-        #         [
-        #           %{
-        #             prev_hash: outpoint_hash,
-        #             prev_out_index: outpoint_index,
-        #             script_len: script_len,
-        #             scriptSig: signature_script,
-        #             sequence: sequence
-        #           }
-        #         ],
-        #       inputs_for_hash ++ [input_for_hash]
-        #     })
-        # )
-
-        %{
-          prev_hash: outpoint_hash,
-          prev_out_index: outpoint_index,
-          script_len: script_len,
-          scriptSig: signature_script,
-          sequence: sequence,
-          input_for_hash: input_for_hash
-        }
-      end
-
-    inputs_for_hash =
-      inputs_with_hash
-      |> Enum.map(fn input -> input[:input_for_hash] end)
-
     inputs =
-      inputs_with_hash
-      |> Enum.map(fn input -> Map.delete(input, :input_for_hash) end)
+      utxos
+      |> generate_inputs()
+
+    # inputs_for_hash =
+    #   inputs_with_hash
+    #   |> Enum.map(fn input -> input[:input_for_hash] end)
+
+    # inputs =
+    #   inputs_with_hash
+    #   |> Enum.map(fn input -> Map.delete(input, :input_for_hash) end)
 
     Logger.debug("Inputs: " <> inspect(inputs))
 
@@ -342,7 +349,15 @@ defmodule SB.Tx do
 
     Logger.debug("Keys map: " <> inspect(keys_map))
 
-    signatures =
+    pid = get_pid()
+    # Logger.debug("Finding Pvt key for pid iter: " <> inspect(pid))
+    private_key = keys_map[pid]["private_key"]
+    # Logger.debug("Pvt key in iter: " <> inspect(private_key))
+
+    public_key = keys_map[pid]["public_key"]
+    # Logger.debug("Pub key in iter: " <> inspect(public_key))
+
+    scriptSigs =
       for iter <- 0..(length(inputs) - 1) do
         input = Enum.fetch(inputs, iter)
 
@@ -356,24 +371,23 @@ defmodule SB.Tx do
               {:error, "No such input"}
           end
 
-        Logger.debug("Input in iteration: " <> inspect(input))
+        # Logger.debug("Input in iteration: " <> inspect(input))
 
-        input_index = Enum.find_index(inputs, fn ip -> input == ip end)
-        Logger.debug("Input index: " <> inspect(input_index))
+        # input_index = Enum.find_index(inputs, fn ip -> input == ip end)
+        # Logger.debug("Input index: " <> inspect(input_index))
 
-        {:ok, input_for_hash} = Enum.fetch(inputs_for_hash, input_index)
+        input_for_hash =
+          input
+          |> generate_input_for_hash()
+
         Logger.debug("Input for hash in iteration: " <> inspect(input_for_hash))
 
-        {:ok, tx_id} = Map.fetch(input, :prev_hash)
-        Logger.debug("Finding Pvt key for tx_id iter: " <> inspect(tx_id))
-        private_key = keys_map[tx_id]["private_key"]
-        Logger.debug("Pvt key in iter: " <> inspect(private_key))
-
         {:ok, binary_transaction} =
-          (version <> num_inputs <> input_for_hash <> num_outputs <> tx_out <> locktime <> sigHash)
+          (version <> num_inputs <> input_for_hash <> num_outputs <> tx_out)
           |> Base.decode16()
 
-        Logger.debug("Binary tx in iter: " <> inspect(binary_transaction |> byte_size()))
+        # <> locktime <> sigHash)
+        # Logger.debug("Binary tx in iter: " <> inspect(binary_transaction |> byte_size()))
 
         signature =
           binary_transaction
@@ -382,8 +396,7 @@ defmodule SB.Tx do
           |> Base.encode16(case: :upper)
           |> generate_signature(private_key)
 
-        public_key = keys_map[tx_id]["public_key"]
-        Logger.debug("Pub key in iter: " <> inspect(public_key))
+        # |> Base.encode16()
 
         # # For signature veriifcation
         # binary_transaction
@@ -391,27 +404,78 @@ defmodule SB.Tx do
         # |> CryptoHandle.hash(:sha256)
         # |> Base.encode16(case: :upper)
         # |> verify_signature(signature, public_key)
+        # |> IO.inspect()
+
+        sig_length =
+          signature
+          |> byte_size()
+          |> Integer.to_string(16)
+
+        signature =
+          signature
+          |> Base.encode16()
+
+        Logger.debug("Signature: " <> inspect(signature))
+        sig_length <> signature <> public_key
       end
 
-    Logger.debug("Signatures: " <> inspect(signatures))
+    Logger.debug("scriptSigs: " <> inspect(scriptSigs))
 
-    # output_string = generate_map_string(outputs)
-    # transaction = transaction <> output_string
+    # Inserting scriptsig in each of the inputs
 
-    # Enum.map(inputs, fn input ->
-    #   tx =
-    #     (version <>
-    #        num_inputs <>
-    #        generate_map_string([input]) <> num_outputs <> output_string <> locktime <> sigHash)
-    #     |> Integer.parse(16)
-    #     |> elem(0)
-    #     |> :binary.encode_unsigned()
+    inputs =
+      for input <- inputs do
+        scriptSig_index = Enum.find_index(inputs, fn ip -> input == ip end)
+        Logger.debug("scriptSig Index : " <> inspect(scriptSig_index))
+        scriptSig = Enum.fetch(scriptSigs, scriptSig_index)
 
-    #   tx_hash =
-    #     tx
-    #     |> CryptoHandle.hash(:sha256)
-    #     |> CryptoHandle.hash(:sha256)
-    # end)
+        {:ok, scriptSig} =
+          case scriptSig do
+            {:ok, _} ->
+              scriptSig
+
+            {:error} ->
+              Logger.debug("Eror fetching the scriptSig")
+              {:error, "No such scriptSig"}
+          end
+
+        Map.replace(input, :scriptSig, scriptSig)
+      end
+
+    Logger.debug("Inputs after replacing with original scriptSig: " <> inspect(inputs))
+
+    tx = %{
+      version: version,
+      num_inputs: num_inputs,
+      inputs: inputs,
+      num_outputs: num_outputs,
+      outputs: outputs
+    }
+
+    tx_hash =
+      tx
+      |> generate_tx_for_hash()
+      |> Binary.from_hex()
+      |> CryptoHandle.hash(:sha256)
+      |> CryptoHandle.hash(:sha256)
+      |> Base.encode16()
+
+    Map.put(tx, :hash, tx_hash)
+  end
+
+  def generate_tx_for_hash(tx) do
+    # transaction = (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time <> sigHash)
+
+    inputs_for_hash =
+      Enum.reduce(tx[:inputs], "", fn input, acc -> acc <> generate_input_for_hash(input) end)
+
+    Logger.debug("Ip TX String: " <> inspect(inputs_for_hash))
+
+    outputs_for_hash =
+      Enum.reduce(tx[:outputs], "", fn output, acc -> acc <> generate_output_for_hash(output) end)
+
+    Logger.debug("Op TX String: " <> inspect(outputs_for_hash))
+    tx[:version] <> tx[:num_inputs] <> inputs_for_hash <> tx[:num_outputs] <> outputs_for_hash
   end
 
   def coinbase_transaction do
@@ -448,8 +512,13 @@ defmodule SB.Tx do
 
     # 5000000000 satoshis == 50 bitcoin, uint64_t
     value =
-      "00f2052a01000000"
-      |> String.upcase()
+      5_000_000_000
+      |> Integer.to_string(16)
+
+    num_bytes = 8
+    pad = 2 * num_bytes - String.length(value)
+
+    value = String.duplicate("0", pad) <> value
 
     # The scriptPubKey saying where the coins are going.
     private_key = CryptoHandle.generate_private_key()
@@ -462,7 +531,7 @@ defmodule SB.Tx do
       public_key
       |> CryptoHandle.generate_address()
       |> Base.encode16()
-      |> get_pub_key_hash
+      |> string_slice(2, -9)
 
     Logger.debug("pk_hash: " <> inspect(pub_key_hash))
 
@@ -500,9 +569,10 @@ defmodule SB.Tx do
 
     # (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time)
     transaction =
-      (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time)
+      (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out)
       |> Binary.from_hex()
 
+    # lock_time
     Logger.debug("Transaction: " <> inspect(transaction |> Base.encode16()))
     # Logger.debug("Transaction: " <> inspect(transaction |> Base.encode16()))
 
@@ -513,7 +583,6 @@ defmodule SB.Tx do
       |> Base.encode16()
 
     write_json("keys", %{
-      hash: trans_hash,
       private_key: private_key |> Base.encode16(),
       public_key: public_key |> Base.encode16()
     })
@@ -566,6 +635,7 @@ defmodule SB.Tx do
       }
     ]
     |> create_transaction_block("aaaaaaaaaaaaaa", 10)
+    |> IO.inspect()
   end
 end
 
