@@ -63,7 +63,7 @@ defmodule SB.Tx do
     Logger.debug("---------Content empty--------")
     Logger.debug("Type: " <> inspect(type))
 
-    path = Path.absname "./lib/data/"
+    path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
     filename = get_pid() <> type <> ".json"
     :ok = File.mkdir_p!(path)
@@ -76,7 +76,7 @@ defmodule SB.Tx do
   end
 
   def write_json(type, content) do
-    path = Path.absname "./lib/data/"
+    path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
     filename = get_pid() <> type <> ".json"
     :ok = File.mkdir_p!(path)
@@ -406,8 +406,8 @@ defmodule SB.Tx do
 
         # # For signature veriifcation
         # binary_transaction
-        # |> CryptoHandle.hash(:sha256)
-        # |> CryptoHandle.hash(:sha256)
+        # |> SB.CryptoHandle.hash(:sha256)
+        # |> SB.CryptoHandle.hash(:sha256)
         # |> Base.encode16(case: :upper)
         # |> verify_signature(signature, public_key)
         # |> IO.inspect()
@@ -462,8 +462,8 @@ defmodule SB.Tx do
       tx
       |> generate_tx_for_hash()
       |> Binary.from_hex()
-      |> CryptoHandle.hash(:sha256)
-      |> CryptoHandle.hash(:sha256)
+      |> SB.CryptoHandle.hash(:sha256)
+      |> SB.CryptoHandle.hash(:sha256)
       |> Base.encode16()
 
     Map.put(tx, :hash, tx_hash)
