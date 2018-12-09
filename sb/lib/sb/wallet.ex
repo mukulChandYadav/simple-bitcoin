@@ -56,6 +56,35 @@ defmodule SB.Wallet do
     create_utxos(utxos, utxos_map, utxo_keys, key_index + 1, remaining_amount - utxo_amount)
   end
 
+  def handle_call({:get_balance}, state) do
+    balance = 0
+    node_id = state.owner_id
+
+    path = Path.absname("./lib/data/")
+    Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    filename = node_id <> "utxo" <> ".json"
+
+    utxos_map =
+      (path <> "/" <> filename)
+      |> SB.Tx.get_json()
+
+    # utxo_keys = Map.keys(utxos_map)
+
+    balance =
+      Enum.reduce(utxos_map, 0, fn {_, utxo}, acc ->
+        transaction_balance =
+          Enum.reduce(utxo, 0, fn {_, out_index_map}, sum ->
+            amount = out_index_map[:value] |> String.to_integer(16)
+            sum + amount
+          end)
+
+        acc + transaction_balance
+      end)
+
+    Logger.debug("Balance: " <> inspect(balance))
+    {:reply, :ok, balance}
+  end
+
   def handle_call(
         {:create_transaction, amount, receiver_pid, receiver_bitcoinaddr_pubkey},
         _from,
