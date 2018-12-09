@@ -6,15 +6,19 @@ defmodule SB.Master do
   require Logger
 
   def start_link(opts) do
-    Logger.debug("Inside #{inspect __MODULE__} start_link with opts - #{inspect opts}")
+    Logger.debug("Inside #{inspect(__MODULE__)} start_link with opts - #{inspect(opts)}")
     return_val = GenServer.start_link(__MODULE__, :ok, opts)
-    Logger.debug("Inside #{inspect __MODULE__} GenServer start return val #{inspect return_val}")
+
+    Logger.debug(
+      "Inside #{inspect(__MODULE__)} GenServer start return val #{inspect(return_val)}"
+    )
+
     return_val
   end
 
   def init(opts) do
-    Logger.debug("Inside #{inspect __MODULE__} init with opts - #{inspect opts}")
-    #send(self, :init)
+    Logger.debug("Inside #{inspect(__MODULE__)} init with opts - #{inspect(opts)}")
+    # send(self, :init)
     miners_table = :ets.new(:ets_miners, [:public, :set, :named_table])
     trans_table = :ets.new(:ets_trans_repo, [:public, :set, :named_table])
     mine_job_table = :ets.new(:ets_mine_jobs, [:public, :set, :named_table])
@@ -23,7 +27,7 @@ defmodule SB.Master do
   end
 
   def handle_info(:init, _from, state) do
-    Logger.debug("Inside #{inspect __MODULE__} init")
+    Logger.debug("Inside #{inspect(__MODULE__)} init")
     init_network
 
     {:reply, :ok, state}
@@ -38,17 +42,19 @@ defmodule SB.Master do
   end
 
   def init_network() do
-    Logger.debug("Inside #{inspect __MODULE__}  init network")
+    Logger.debug("Inside #{inspect(__MODULE__)}  init network")
 
-    num_miners = 3#8
+    # 8
+    num_miners = 3
+
     for x <- 1..num_miners do
       {:ok, node_pid} =
-        DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, %{is_miner: true}})
-      Logger.debug("Inside #{inspect __MODULE__}  Miner - #{inspect node_pid}")
+        DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, %{is_miner: true, node_id: x}})
+
+      Logger.debug("Inside #{inspect(__MODULE__)}  Miner - #{inspect(node_pid)}")
       send(node_pid, {:mine, nil})
     end
 
-    Process.sleep(1000000000)
+    Process.sleep(1_000_000_000)
   end
-
 end

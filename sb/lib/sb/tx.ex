@@ -12,7 +12,7 @@ defmodule SB.Tx do
     with {:ok, body} <- File.read(filename), {:ok, json} <- Poison.decode(body), do: {:ok, json}
   end
 
-  def append_json(type, path, content) when type == "utxo" do
+  def append_json(node_id, type, path, content) when type == "utxo" do
     tx_id = content[:hash]
     output_index = content[:out_index]
 
@@ -39,8 +39,8 @@ defmodule SB.Tx do
     end
   end
 
-  def append_json(type, path, content) when type == "keys" do
-    pid = get_pid()
+  def append_json(node_id, type, path, content) when type == "keys" do
+    pid = node_id
 
     {:ok, json} =
       path
@@ -49,7 +49,7 @@ defmodule SB.Tx do
     Map.put(json, pid, content)
   end
 
-  def append_json(_, path, content) do
+  def append_json(_, _, path, content) do
     tx_id = content[:hash]
 
     {:ok, json} =
@@ -59,26 +59,26 @@ defmodule SB.Tx do
     Map.put(json, tx_id, content)
   end
 
-  def write_json(type, content) when content == %{} do
+  def write_json(node_id, type, content) when content == %{} do
     Logger.debug("---------Content empty--------")
     Logger.debug("Type: " <> inspect(type))
 
     path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
-    filename = get_pid() <> type <> ".json"
+    filename = node_id <> type <> ".json"
     :ok = File.mkdir_p!(path)
 
     json_encoded_content =
       %{}
       |> Poison.encode!()
 
-    File.write!(path <> filename, json_encoded_content)
+    File.write!(path <> "/" <> filename, json_encoded_content)
   end
 
-  def write_json(type, content) do
+  def write_json(node_id, type, content) do
     path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
-    filename = get_pid() <> type <> ".json"
+    filename = node_id <> type <> ".json"
     :ok = File.mkdir_p!(path)
 
     Logger.debug("---------Content not empty--------")
@@ -86,27 +86,14 @@ defmodule SB.Tx do
     Logger.debug("Type: " <> inspect(type))
 
     json_encoded_content =
-      append_json(type, path <> filename, content)
+      append_json(node_id, type, path <> "/" <> filename, content)
       |> Poison.encode!()
 
-    File.write!(path <> filename, json_encoded_content)
+    File.write!(path <> "/" <> filename, json_encoded_content)
   end
 
   defp string_slice(bc_addr, from, to) do
     String.slice(bc_addr, from..to)
-  end
-
-  defp generate_map_string(list) do
-    Enum.reduce(list, "", fn input, acc ->
-      values = Map.values(input)
-
-      map_values_string =
-        Enum.reduce(values, "", fn value, accum ->
-          accum <> value
-        end)
-
-      acc <> map_values_string
-    end)
   end
 
   def generate_signature(message, private_key) do
@@ -114,13 +101,12 @@ defmodule SB.Tx do
       private_key
       |> Base.decode16()
 
-    signature =
-      :crypto.sign(
-        :ecdsa,
-        :sha256,
-        message,
-        [private, :secp256k1]
-      )
+    :crypto.sign(
+      :ecdsa,
+      :sha256,
+      message,
+      [private, :secp256k1]
+    )
   end
 
   def verify_signature(message, signature, public_key) do
@@ -189,7 +175,7 @@ defmodule SB.Tx do
       Logger.debug("Outpoint index: " <> inspect(outpoint_index))
       Logger.debug("Signature script (Placehoded by pubKeyScript)" <> inspect(signature_script))
 
-      input = %{
+      %{
         prev_hash: outpoint_hash,
         prev_out_index: outpoint_index,
         script_len: script_len,
@@ -199,11 +185,11 @@ defmodule SB.Tx do
     end
   end
 
-  def create_transaction_block(utxos, _, _) when utxos == [] do
+  def create_transaction_block(_, utxos, _, _) when utxos == [] do
     false
   end
 
-  def create_transaction_block(utxos, bc_addr, amount) do
+  def create_transaction_block(node_id, utxos, bc_addr, amount) do
     Logger.debug("---------Creating Transaction-----------")
 
     # transaction = (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time <> sigHash)
@@ -211,11 +197,9 @@ defmodule SB.Tx do
     transaction = ""
     version = "01000000"
     transaction = transaction <> version
-    locktime = "00000000"
-    sigHash = "01000000"
+    # locktime = "00000000"
+    # sigHash = "01000000"
 
-    satoshi_multiplier = 100_000_000
-    amount = (amount * satoshi_multiplier) |> trunc()
     # Creating outputs
     # outputs = [
     #   {
@@ -299,13 +283,7 @@ defmodule SB.Tx do
     # tx_in = previous_output <> script_length <> signature_script <> sequence
     # previous_output = outpoint_hash <> outPoint_index
 
-    sequence =
-      "ffffffff"
-      |> String.upcase()
-
-    inputs = []
-    inputs_for_hash = []
-    script_len = 0
+    # sequence ="ffffffff"|> String.upcase()
 
     inputs =
       utxos
@@ -320,8 +298,6 @@ defmodule SB.Tx do
     #   |> Enum.map(fn input -> Map.delete(input, :input_for_hash) end)
 
     Logger.debug("Inputs: " <> inspect(inputs))
-
-    Logger.debug("Inputs for Hash: " <> inspect(inputs_for_hash))
 
     # Enum.each(utxos, fn utxo ->
     #   nil
@@ -347,7 +323,7 @@ defmodule SB.Tx do
 
     # transaction = (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time <> sigHash)
 
-    path = Path.absname("./lib/data/") <> get_pid() <> "keys.json"
+    path = Path.absname("./lib/data/") <> node_id <> "keys.json"
 
     {:ok, keys_map} =
       path
@@ -355,7 +331,7 @@ defmodule SB.Tx do
 
     Logger.debug("Keys map: " <> inspect(keys_map))
 
-    pid = get_pid()
+    pid = node_id
     # Logger.debug("Finding Pvt key for pid iter: " <> inspect(pid))
     private_key = keys_map[pid]["private_key"]
     # Logger.debug("Pvt key in iter: " <> inspect(private_key))
@@ -484,7 +460,7 @@ defmodule SB.Tx do
     tx[:version] <> tx[:num_inputs] <> inputs_for_hash <> tx[:num_outputs] <> outputs_for_hash
   end
 
-  def coinbase_transaction do
+  def coinbase_transaction(btc_addr_hash, amt_in_satoshis) do
     # version 1, uint32_t
     version = "01000000"
 
@@ -517,8 +493,9 @@ defmodule SB.Tx do
     tx_out_count = "01"
 
     # 5000000000 satoshis == 50 bitcoin, uint64_t
+    # 5_000_000_000
     value =
-      5_000_000_000
+      amt_in_satoshis
       |> Integer.to_string(16)
 
     num_bytes = 8
@@ -529,15 +506,16 @@ defmodule SB.Tx do
     # The scriptPubKey saying where the coins are going.
     private_key = SB.CryptoHandle.generate_private_key()
 
-    public_key =
-      private_key
-      |> SB.CryptoHandle.generate_public_key()
+    public_key = btc_addr_hash
+    # private_key
+    # |> SB.CryptoHandle.generate_public_key()
 
     pub_key_hash =
       public_key
-      |> SB.CryptoHandle.generate_address()
       |> Base.encode16()
       |> string_slice(2, -9)
+
+    #      |> SB.CryptoHandle.generate_address()
 
     Logger.debug("pk_hash: " <> inspect(pub_key_hash))
 
@@ -571,7 +549,7 @@ defmodule SB.Tx do
     tx_out = value <> pk_script_length <> pk_script
 
     # immediately locked, uint32_t
-    lock_time = "00000000"
+    # lock_time = "00000000"
 
     # (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time)
     transaction =
@@ -588,10 +566,10 @@ defmodule SB.Tx do
       |> SB.CryptoHandle.hash(:sha256)
       |> Base.encode16()
 
-    write_json("keys", %{
-      private_key: private_key |> Base.encode16(),
-      public_key: public_key |> Base.encode16()
-    })
+    # write_json("keys", %{
+    #   private_key: private_key |> Base.encode16(),
+    #   public_key: public_key |> Base.encode16()
+    # })
 
     # Tx content
     # hash: nil, version: "01000000", num_inputs: 0, inputs: [], num_outputs: 0, outputs: []
@@ -612,40 +590,40 @@ defmodule SB.Tx do
     }
   end
 
-  def main do
-    write_json("tx", %{})
-    write_json("utxo", %{})
-    write_json("keys", %{})
-    content = coinbase_transaction()
-    Logger.debug("Content: " <> inspect(content))
+  #   def main do
+  #     write_json("tx", %{})
+  #     write_json("utxo", %{})
+  #     write_json("keys", %{})
+  #     content = coinbase_transaction()
+  #     Logger.debug("Content: " <> inspect(content))
 
-    write_json("tx", content)
+  #     write_json("tx", content)
 
-    # Testing utxo
-    op = Enum.at(content[:outputs], 0)
+  #     # Testing utxo
+  #     op = Enum.at(content[:outputs], 0)
 
-    utxo_content =
-      Map.put(%{}, :hash, content[:hash])
-      |> Map.put(:out_index, "00000000")
-      |> Map.put(:value, op[:value])
-      |> Map.put(:scriptPubKey, op[:scriptPubKey])
+  #     utxo_content =
+  #       Map.put(%{}, :hash, content[:hash])
+  #       |> Map.put(:out_index, "00000000")
+  #       |> Map.put(:value, op[:value])
+  #       |> Map.put(:scriptPubKey, op[:scriptPubKey])
 
-    write_json("utxo", utxo_content)
+  #     write_json("utxo", utxo_content)
 
-    [
-      %{
-        hash: content[:hash],
-        out_index: "00000000",
-        value: op[:value],
-        scriptPubKey: op[:scriptPubKey]
-      }
-    ]
-    |> create_transaction_block("aaaaaaaaaaaaaa", 10)
-    |> IO.inspect()
-  end
+  #     [
+  #       %{
+  #         hash: content[:hash],
+  #         out_index: "00000000",
+  #         value: op[:value],
+  #         scriptPubKey: op[:scriptPubKey]
+  #       }
+  #     ]
+  #     |> create_transaction_block("aaaaaaaaaaaaaa", 10)
+  #     |> IO.inspect()
+  #   end
 end
 
-SB.Tx.main()
-|> IO.inspect()
+# SB.Tx.main()
+# |> IO.inspect()
 
 IO.inspect("Main executed")
