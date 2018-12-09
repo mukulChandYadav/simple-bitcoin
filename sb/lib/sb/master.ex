@@ -45,7 +45,7 @@ defmodule SB.Master do
       {:ok, node_pid} =
         DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, %{is_miner: true}})
       Logger.debug("Inside #{inspect __MODULE__}  Miner - #{inspect node_pid}")
-      send(node_pid, :mine)
+      send(node_pid, {:mine, nil})
     end
 
     Process.sleep(1000000000)
