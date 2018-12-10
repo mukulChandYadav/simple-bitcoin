@@ -63,6 +63,32 @@ defmodule SB.Master do
       Logger.debug("Inside #{inspect(__MODULE__)}  Miner - #{inspect(node_pid)}")
       send(node_pid, {:mine, nil})
     end
-
   end
+
+  def wait_till_genesis_coins_mined() do
+    pid_list = :ets.foldl(fn {hash, w_pid}, wallet_pid_list -> List.insert_at(wallet_pid_list, -1, w_pid) end, [], :ets_wallet_addrs)
+
+    num_wallets_above_threshold = Enum.reduce(pid_list, 0, &SB.Master.acc_wallet_threshold/2)
+    if(num_wallets_above_threshold < length pid_list)do
+      Process.sleep(1000)
+      wait_till_genesis_coins_mined()
+    end
+  end
+
+  def acc_wallet_threshold(w_pid, acc) do
+    bal = GenServer.call(w_pid, :get_balance)
+    if(bal > 300_000_000) do
+      acc + 1
+    else
+      acc
+    end
+  end
+
+  def perform_tranx(amount) do
+    first_key = :ets.first(:ets_wallet_addrs)
+    [{_, w_pid}] = :ets.lookup(:ets_wallet_addrs, first_key)
+    wallet_state = GenServer.call(w_pid, :get_state_info)
+    GenServer.call(w_pid, {:create_transaction, amount, wallet_state.owner_pid, SB.Wallet.create_bitcoin_addr(wallet_state.public_key)})
+  end
+
 end

@@ -17,12 +17,16 @@ defmodule SBTest do
 
   defp perform_test() do
     SB.Master.init_network()
-    Process.sleep(1000000000);
+    Process.sleep(5000);
     assert true
   end
 
   defp perform_tx_test() do
-    Process.sleep(1000000000);
+    Process.sleep(1000_000);
+    SB.Master.wait_till_genesis_coins_mined()
+
+    #SB.Master.perform_tranx(0.1)
+    #TODO Improve assertion
     assert true
   end
 

@@ -30,12 +30,17 @@ defmodule SB.Wallet do
     }
 
     # TODO Initialize wallet state from static file
-    prefix = "76A914"
-    suffix = "88AC"
-    wallet_addr = prefix <> SB.CryptoHandle.generate_public_hash_hex(opts.public_key) <> suffix
+
+    wallet_addr = create_bitcoin_addr(opts.public_key)
     :ets.insert(:ets_wallet_addrs, {wallet_addr, self()})
 
     {:ok, wallet_state}
+  end
+
+  def create_bitcoin_addr(public_key_bin) do
+    prefix = "76A914"
+    suffix = "88AC"
+    wallet_addr = prefix <> SB.CryptoHandle.generate_public_hash_hex(public_key_bin) <> suffix
   end
 
   def handle_call(:get_state_info, _from, state) do
@@ -191,7 +196,7 @@ defmodule SB.Wallet do
       GenServer.call(wallet_pid, {:update_wallet_sender, new_tx})
     end
 
-    num_outputs = Integer.parse(new_tx.num_outputs)
+    {num_outputs,_} = Integer.parse(new_tx.num_outputs)
     for x <- 1..num_outputs do
       output = Enum.fetch(new_tx.outputs, x - 1)
       wallet_pid = lookup_wallet_pid(output.scriptPubKey)
