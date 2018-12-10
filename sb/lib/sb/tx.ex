@@ -66,7 +66,7 @@ defmodule SB.Tx do
 
     path = Path.absname("./lib/data/")
     #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
-    filename = node_id <> type <> ".json"
+    filename = inspect(node_id) <> type <> ".json"
     :ok = File.mkdir_p!(path)
 
     json_encoded_content =
@@ -79,7 +79,7 @@ defmodule SB.Tx do
   def write_json(node_id, type, content) do
     path = Path.absname("./lib/data/")
     #Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
-    filename = node_id <> type <> ".json"
+    filename = inspect(node_id) <> type <> ".json"
     :ok = File.mkdir_p!(path)
 
     #Logger.debug("---------Content not empty--------")
@@ -206,7 +206,7 @@ defmodule SB.Tx do
 
     path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
-    filename = node_id <> "utxo" <> ".json"
+    filename = inspect(node_id) <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
     File.write!(path <> "/" <> filename, content)
@@ -232,7 +232,7 @@ defmodule SB.Tx do
 
     path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
-    filename = node_id <> "utxo" <> ".json"
+    filename = inspect(node_id) <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
     File.write!(path <> "/" <> filename, content)
