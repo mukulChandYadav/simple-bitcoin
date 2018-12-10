@@ -47,14 +47,12 @@ defmodule SB.Wallet do
   end
 
   def handle_call({:update_wallet_receiver, tx}, _from, state) do
-
     SB.Tx.update_utxo_json(:receiver, state.owner_id, tx)
 
     {:reply, :ok, state}
   end
 
   def handle_call({:update_wallet_sender, tx}, _from, state) do
-
     SB.Tx.update_utxo_json(:sender, state.owner_id, tx)
 
     {:reply, :ok, state}
@@ -81,7 +79,7 @@ defmodule SB.Wallet do
     node_id = state.owner_id
 
     path = Path.absname("./lib/data/")
-    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    # Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
     filename = inspect(node_id) <> "utxo" <> ".json"
 
     {:ok, utxos_map} =
@@ -94,14 +92,15 @@ defmodule SB.Wallet do
       Enum.reduce(utxos_map, 0, fn {_, utxo}, acc ->
         transaction_balance =
           Enum.reduce(utxo, 0, fn {_, out_index_map}, sum ->
-            amount = out_index_map[:value] |> String.to_integer(16)
+            Logger.debug("Out index map: " <> inspect(out_index_map))
+            amount = out_index_map["value"] |> String.to_integer(16)
             sum + amount
           end)
 
         acc + transaction_balance
       end)
 
-    #Logger.debug("Balance: " <> inspect(balance))
+    # Logger.debug("Balance: " <> inspect(balance))
     {:reply, {:ok, balance}, state}
   end
 
@@ -118,7 +117,7 @@ defmodule SB.Wallet do
 
     # Pick up the utxos for the specified amount and call create_transaction_block with their list and btc address
     path = Path.absname("./lib/data/")
-    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    # Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
     filename = state.node_id <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
@@ -164,7 +163,7 @@ defmodule SB.Wallet do
     updated_wallet = wallet
 
     # Logger.debug("Inside #{inspect __MODULE__} Update wallet. Before updated blocks #{inspect updated_wallet.blocks}")
-    Logger.debug("Update wallet. Before updated blocks #{inspect block.tx}")
+    Logger.debug("Update wallet. Before updated blocks #{inspect(block.tx)}")
     updated_blocks = updated_wallet.blocks ++ [block]
 
     # Logger.debug("Inside #{inspect __MODULE__} Update wallet. After updated blocks #{inspect updated_blocks}")
@@ -181,28 +180,30 @@ defmodule SB.Wallet do
   def update_wallet_with_new_tx(wallet, new_tx) do
     # TODO: Update files after transaction validation from the miners
 
-    Logger.debug("Update wallet with tx - #{inspect new_tx}")
-    {num_inputs,_} = Integer.parse(new_tx.num_inputs)
+    Logger.debug("Update wallet with tx - #{inspect(new_tx)}")
+    {num_inputs, _} = Integer.parse(new_tx.num_inputs)
     # Assuming last output is change output back to receiver
     sender_wallet_addr_hash = List.last(new_tx.outputs).scriptPubKey
+
     for x <- 1..num_inputs do
       input = Enum.fetch(new_tx.inputs, x - 1)
       wallet_pid = lookup_wallet_pid(sender_wallet_addr_hash)
       GenServer.call(wallet_pid, {:update_wallet_sender, new_tx})
     end
 
-    num_outputs = Integer.parse(new_tx.num_outputs)
+    {num_outputs, _} = Integer.parse(new_tx.num_outputs)
+    Logger.debug("Number of Outputs: " <> inspect(num_outputs))
+
     for x <- 1..num_outputs do
-      output = Enum.fetch(new_tx.outputs, x - 1)
+      {:ok, output} = Enum.fetch(new_tx.outputs, x - 1)
+      Logger.debug("Output: " <> inspect(output))
       wallet_pid = lookup_wallet_pid(output.scriptPubKey)
+      Logger.debug("Wallet_pid: " <> inspect(wallet_pid))
       GenServer.call(wallet_pid, {:update_wallet_receiver, new_tx})
     end
-
-
   end
 
   defp lookup_wallet_pid(script_pub_key) do
-
     wallet_pid =
       try do
         [{_, wallet_pid}] = :ets.lookup(:ets_wallet_addrs, script_pub_key)
