@@ -6,18 +6,16 @@ defmodule SB.Master do
   require Logger
 
   def start_link(opts) do
-    Logger.debug("Inside #{inspect(__MODULE__)} start_link with opts - #{inspect(opts)}")
+    Logger.debug("Start_link with opts - #{inspect(opts)}")
     return_val = GenServer.start_link(__MODULE__, :ok, opts)
 
-    Logger.debug(
-      "Inside #{inspect(__MODULE__)} GenServer start return val #{inspect(return_val)}"
-    )
+    Logger.debug("GenServer start return val #{inspect(return_val)}")
 
     return_val
   end
 
   def init(opts) do
-    Logger.debug("Inside #{inspect(__MODULE__)} init with opts - #{inspect(opts)}")
+    Logger.debug("Init with opts - #{inspect(opts)}")
     # send(self, :init)
     miners_table = :ets.new(:ets_miners, [:public, :set, :named_table])
     trans_table = :ets.new(:ets_trans_repo, [:public, :set, :named_table])
@@ -25,7 +23,7 @@ defmodule SB.Master do
     wallet_address_table = :ets.new(:ets_wallet_addrs, [:public, :set, :named_table])
 
     path = Path.absname("./lib/data/")
-    Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    Logger.debug("Dir path: " <> inspect(path))
 
     # Delete and recreate the data folder to remove all the files
     path = Path.absname("./lib/data")
@@ -36,7 +34,7 @@ defmodule SB.Master do
   end
 
   def handle_info(:init, _from, state) do
-    Logger.debug("Inside #{inspect(__MODULE__)} init")
+    Logger.debug("Init")
     init_network()
 
     {:reply, :ok, state}
@@ -51,7 +49,7 @@ defmodule SB.Master do
   end
 
   def init_network() do
-    Logger.debug("Inside #{inspect(__MODULE__)}  init network")
+    Logger.debug("Init network")
 
     # 8
     num_miners = 3
@@ -60,7 +58,7 @@ defmodule SB.Master do
       {:ok, node_pid} =
         DynamicSupervisor.start_child(SB.NodeSupervisor, {SB.Node, %{is_miner: true, node_id: x}})
 
-      Logger.debug("Inside #{inspect(__MODULE__)}  Miner - #{inspect(node_pid)}")
+      Logger.debug("Miner - #{inspect(node_pid)}")
       send(node_pid, {:mine, nil})
     end
   end

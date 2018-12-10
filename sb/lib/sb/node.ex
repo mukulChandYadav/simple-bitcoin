@@ -126,6 +126,8 @@ defmodule SB.Node do
     # TODO: Change to Wallet UTXO value threshold
     {:ok, utxo_satoshis} = GenServer.call(state.wallet.wallet_pid, :get_balance)
 
+    Logger.debug("Utxo_satoshis mined by node- #{state.node_id} is #{inspect utxo_satoshis}")
+
     if(utxo_satoshis < 300_000_000) do
 
       new_tx =
@@ -220,7 +222,7 @@ defmodule SB.Node do
   end
 
   def handle_cast({:new_block_registered, block}, state) do
-    Logger.debug("Approved block - #{inspect block}")
+    Logger.debug("Approved block - #{inspect block.block_id}")
 
     new_state = %{state | block: block}
 
@@ -346,7 +348,7 @@ defmodule SB.Node do
         {%{node_id: parent_pid, val: :block, id: new_block.block_id}, new_block}
       )
 
-      Logger.debug("Node - #{inspect parent_pid} mined this block - #{inspect new_block}")
+      Logger.debug("Node - #{inspect parent_pid} mined this block - #{inspect new_block.block_id}")
       # abc = :ets.lookup(:ets_mine_jobs, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       # Registry.lookup(SB.Registry.NodeInfo, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       # Logger.debug("Inside #{inspect __MODULE__} mine. Registered block - #{inspect abc}")
@@ -407,10 +409,10 @@ defmodule SB.Node do
         new_state
       else
         Logger.debug("Update wallet. #{inspect(new_state.node_id)} node did not mine this-#{inspect(new_state.block.block_id)} block")
-        Logger.debug("Update wallet. Updated block ts-#{inspect new_state.block.timestamp} this block ts - #{inspect :ets.lookup(:ets_mine_jobs, %{node_id: new_state.node_id,
-          val: :block,
-          id: new_state.block.block_id
-        })}")
+        #        Logger.debug("Update wallet. Updated block ts-#{inspect new_state.block.timestamp} this block ts - #{inspect :ets.lookup(:ets_mine_jobs, %{node_id: new_state.node_id,
+        #          val: :block,
+        #          id: new_state.block.block_id
+        #        })}")
 
         new_state
       end
