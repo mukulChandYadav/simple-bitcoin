@@ -3,6 +3,8 @@ defmodule SB.Node do
 
   use GenServer
 
+ 
+
   require Logger
 
   # TODO:
@@ -18,7 +20,7 @@ defmodule SB.Node do
     ##### Logger.debug("Inside #{inspect __MODULE__} ret val - #{inspect ret_val}")
 
     # Add transaction publish handler
-
+    
     ret_val
   end
 
@@ -61,9 +63,9 @@ defmodule SB.Node do
     wallet_state = GenServer.call(wallet_pid, :get_state_info)
     node_state = put_in(node_state.wallet, wallet_state)
 
-    # Create UTXO file for this node
+    #Create UTXO file for this node
     path = Path.absname("./lib/data/")
-    # Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
     filename = inspect(node_id) <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
@@ -73,9 +75,9 @@ defmodule SB.Node do
 
     File.write!(path <> "/" <> filename, json_encoded_content)
 
-    # Create TX file for this node
+    #Create TX file for this node
     path = Path.absname("./lib/data/")
-    # Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
     filename = inspect(node_id) <> "tx" <> ".json"
     :ok = File.mkdir_p!(path)
 
@@ -103,14 +105,12 @@ defmodule SB.Node do
   end
 
   def handle_info({:mine, tx_to_be_processed}, state) do
-    # Logger.debug(" Mine block Node state - #{inspect state}")
+    #Logger.debug(" Mine block Node state - #{inspect state}")
 
     # TODO Add generated blocks to owner nodes
     num_blocks_mined = length(state.wallet.blocks)
 
-    Logger.debug(
-      "Num blocks mined by #{inspect(state.node_id)} node is - #{inspect(num_blocks_mined)}"
-    )
+    Logger.debug("Num blocks mined by #{inspect(state.node_id)} node is - #{inspect(num_blocks_mined)}")
 
     new_tx = tx_to_be_processed
 
@@ -160,7 +160,6 @@ defmodule SB.Node do
       curr_nonce =
         try do
           [{_, curr_nonce}] = :ets.lookup(:ets_mine_jobs, %{node_id: state.node_id, val: :nonce})
-
           # Registry.lookup(SB.Registry.NodeInfo, %{node_id: state.node_id, val: :nonce})
           curr_nonce
         rescue
@@ -173,7 +172,7 @@ defmodule SB.Node do
           4,
           block_header_hash,
           state.block,
-          self,
+          state.node_id,
           curr_nonce,
           new_tx
         ])
@@ -191,6 +190,7 @@ defmodule SB.Node do
         _from,
         state
       ) do
+
     GenServer.call(
       state.wallet.wallet_pid,
       {:create_transaction, amount, receiver_pid, receiver_bitcoinaddr_pubkey}
@@ -217,7 +217,7 @@ defmodule SB.Node do
   end
 
   def handle_cast({:new_block_registered, block}, state) do
-    Logger.debug("Approved block - #{inspect(block)}")
+    Logger.debug("Approved block - #{inspect block.block_id}")
 
     new_state = %{state | block: block}
 
@@ -236,11 +236,7 @@ defmodule SB.Node do
 
     block_ids = Enum.map(new_state.wallet.blocks, fn x -> x.block_id end)
 
-    Logger.debug(
-      "New block registered after Update wallet of #{inspect(state.node_id)}. After update blocks in wallet - #{
-        inspect(block_ids)
-      }"
-    )
+    Logger.debug("New block registered after Update wallet of #{inspect(state.node_id)}. After update blocks in wallet - #{inspect(block_ids)}")
 
     if(mine_job != [] && mine_job != nil) do
       if(Process.alive?(mine_job)) do
@@ -317,6 +313,7 @@ defmodule SB.Node do
       end
   end
 
+
   def mine(leading_zeros, hash_msg, base_block, parent_pid, nonce, new_tx) do
     hash_msg =
       if(base_block.prev_block == nil) do
@@ -346,8 +343,7 @@ defmodule SB.Node do
         {%{node_id: parent_pid, val: :block, id: new_block.block_id}, new_block}
       )
 
-      Logger.debug("Node - #{inspect(parent_pid)} mined this block - #{inspect(new_block)}")
-
+      Logger.debug("Node - #{inspect parent_pid} mined this block - #{inspect new_block.block_id}")
       # abc = :ets.lookup(:ets_mine_jobs, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       # Registry.lookup(SB.Registry.NodeInfo, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       # Logger.debug("Inside #{inspect __MODULE__} mine. Registered block - #{inspect abc}")
@@ -366,11 +362,7 @@ defmodule SB.Node do
   end
 
   defp update_wallet(new_state) do
-    Logger.debug(
-      "Update wallet. Received block - #{inspect(new_state.block.block_id)} for verification to #{
-        inspect(new_state.node_id)
-      }"
-    )
+    Logger.debug("Update wallet. Received block - #{inspect(new_state.block.block_id)} for verification to #{inspect(new_state.node_id)}")
 
     block_mined_by_this_node_with_new_block_id =
       try do
@@ -394,11 +386,7 @@ defmodule SB.Node do
     new_state =
       if block_mined_by_this_node_with_new_block_id != nil &&
            new_state.block.timestamp == block_mined_by_this_node_with_new_block_id.timestamp do
-        Logger.debug(
-          "Update wallet. node #{inspect(new_state.node_id)} mined this-#{
-            inspect(new_state.block.block_id)
-          } block."
-        )
+        Logger.debug("Update wallet. node #{inspect(new_state.node_id)} mined this-#{inspect(new_state.block.block_id)} block.")
 
         new_state = %{
           new_state
@@ -415,23 +403,11 @@ defmodule SB.Node do
 
         new_state
       else
-        Logger.debug(
-          "Update wallet. #{inspect(new_state.node_id)} node did not mine this-#{
-            inspect(new_state.block.block_id)
-          } block"
-        )
-
-        Logger.debug(
-          "Update wallet. Updated block ts-#{inspect(new_state.block.timestamp)} this block ts - #{
-            inspect(
-              :ets.lookup(:ets_mine_jobs, %{
-                node_id: new_state.node_id,
-                val: :block,
-                id: new_state.block.block_id
-              })
-            )
-          }"
-        )
+        Logger.debug("Update wallet. #{inspect(new_state.node_id)} node did not mine this-#{inspect(new_state.block.block_id)} block")
+        #        Logger.debug("Update wallet. Updated block ts-#{inspect new_state.block.timestamp} this block ts - #{inspect :ets.lookup(:ets_mine_jobs, %{node_id: new_state.node_id,
+        #          val: :block,
+        #          id: new_state.block.block_id
+        #        })}")
 
         new_state
       end
