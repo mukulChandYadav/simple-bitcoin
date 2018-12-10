@@ -64,6 +64,7 @@ defmodule SB.Node do
     # Logger.error("wallet -#{inspect  GenServer.call(wallet_pid, :get_state_info)}")
     {:ok, wallet_state} = GenServer.call(wallet_pid, :get_state_info)
     node_state = put_in(node_state.wallet, wallet_state)
+
     # send(self, :mine)
     ##### Logger.debug("Inside #{inspect __MODULE__} Node state - #{inspect node_state} for #{inspect self}")
     {:ok, node_state}
@@ -82,32 +83,32 @@ defmodule SB.Node do
   end
 
   def handle_info({:mine, tx_to_be_processed}, state) do
-    ## Logger.debug("Inside #{inspect __MODULE__} Mine block Node state - #{inspect state}")
+    #Logger.debug(" Mine block Node state - #{inspect state}")
 
     # TODO Add generated blocks to owner nodes
     num_blocks_mined = length(state.wallet.blocks)
 
-    Logger.debug(
-      "Inside #{inspect(__MODULE__)} Num blocks mined by #{inspect(state.node_id)} node is - #{
-        inspect(num_blocks_mined)
-      }"
-    )
+    Logger.debug("Num blocks mined by #{inspect(state.node_id)} node is - #{inspect(num_blocks_mined)}")
 
     new_tx = tx_to_be_processed
 
-    # TODO: Change to Wallet UTXO value threshold
-    if(num_blocks_mined < 3) do
-      # TODO
-      block_header_hash = ""
+    block_header_hash =
+      if(state.block != nil) do
+        SB.BlockHeader.prepare_prev_hash(state.block.block_header)
+      else
+        ""
+      end
 
-      #
+    # TODO: Change to Wallet UTXO value threshold
+    {:ok, utxo_satoshis} = GenServer.call(state.wallet.wallet_pid, :get_balance)
+
+    if(utxo_satoshis < 300_000_000) do
+
       new_tx =
         SB.Tx.coinbase_transaction(
           SB.CryptoHandle.generate_address(state.public_key),
           100_000_000
         )
-
-      # new_tx = SB.Tx.create_transaction_block(utxos, state.public_key, 100_000_000) # Miner gets 1 BTC
 
       curr_nonce =
         try do
@@ -124,17 +125,15 @@ defmodule SB.Node do
           4,
           block_header_hash,
           state.block,
-          self,
+          state.node_id,
           curr_nonce,
           new_tx
         ])
 
       add_task_to_table(mining_task.pid, state)
     else
+      Logger.debug("Mined enough satoshis in wallet")
       if(tx_to_be_processed != nil) do
-        # TODO
-        block_header_hash = ""
-
         curr_nonce =
           try do
             [{_, curr_nonce}] =
@@ -167,10 +166,9 @@ defmodule SB.Node do
 
   def handle_call(
         {:perform_transaction, amount, receiver_pid, receiver_bitcoinaddr_pubkey},
+        _from,
         state
       ) do
-    # TODO
-    # Call wallet, providing the amount and btc address
 
     GenServer.call(
       state.wallet.wallet_pid,
@@ -217,11 +215,7 @@ defmodule SB.Node do
 
     block_ids = Enum.map(new_state.wallet.blocks, fn x -> x.block_id end)
 
-    Logger.debug(
-      "Inside #{inspect(__MODULE__)} New block registered after Update wallet of #{
-        inspect(state.node_id)
-      }. After update blocks in wallet - #{inspect(block_ids)}"
-    )
+    Logger.debug("New block registered after Update wallet of #{inspect(state.node_id)}. After update blocks in wallet - #{inspect(block_ids)}")
 
     if(mine_job != [] && mine_job != nil) do
       if(Process.alive?(mine_job)) do
@@ -258,8 +252,8 @@ defmodule SB.Node do
         map
       end
 
-    Logger.debug("#{inspect(__MODULE__)} Get Miners : #{inspect(tx)} ")
-    new_map = Map.delete(map, tx.id)
+    Logger.debug(" Get Miners : #{inspect(tx)} ")
+    new_map = Map.delete(map, tx.hash)
     :ets.insert(:ets_trans_repo, {:new_tranx, new_map})
   end
 
@@ -269,7 +263,7 @@ defmodule SB.Node do
 
   defp get_new_transaction_from_queue(tx) do
     out = :ets.lookup(:ets_trans_repo, :new_tranx)
-    Logger.debug("#{inspect(__MODULE__)} Get new tx : #{inspect(tx)} ")
+    Logger.debug("Get new tx : #{inspect(tx)} ")
 
     map =
       if(out == nil || out == []) do
@@ -298,7 +292,7 @@ defmodule SB.Node do
       end
   end
 
-  # TODO Remove hash_msg arg
+
   def mine(leading_zeros, hash_msg, base_block, parent_pid, nonce, new_tx) do
     hash_msg =
       if(base_block.prev_block == nil) do
@@ -328,7 +322,7 @@ defmodule SB.Node do
         {%{node_id: parent_pid, val: :block, id: new_block.block_id}, new_block}
       )
 
-      # Logger.debug("Inside #{inspect __MODULE__} mine. Node - #{inspect parent_pid} mined this block - #{inspect new_block}")
+      Logger.debug("Node - #{inspect parent_pid} mined this block - #{inspect new_block}")
       # abc = :ets.lookup(:ets_mine_jobs, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       # Registry.lookup(SB.Registry.NodeInfo, %{node_id: parent_pid, val: :block, id: new_block.block_id})
       # Logger.debug("Inside #{inspect __MODULE__} mine. Registered block - #{inspect abc}")
@@ -347,11 +341,7 @@ defmodule SB.Node do
   end
 
   defp update_wallet(new_state) do
-    Logger.debug(
-      "Inside #{inspect(__MODULE__)} Update wallet. Received block - #{
-        inspect(new_state.block.block_id)
-      } for verification to #{inspect(new_state.node_id)}"
-    )
+    Logger.debug("Update wallet. Received block - #{inspect(new_state.block.block_id)} for verification to #{inspect(new_state.node_id)}")
 
     block_mined_by_this_node_with_new_block_id =
       try do
@@ -371,15 +361,11 @@ defmodule SB.Node do
     # Logger.debug("Inside #{inspect __MODULE__} Update wallet. Block mined by #{inspect new_state.node_id} node - #{inspect block_mined_by_this_node_with_new_block_id}")
 
     # Relying on timestamp for confirming that approved block is mined by this node
-    # TODO Revert to signature verification later
+    # TODO: Revert to signature verification later
     new_state =
       if block_mined_by_this_node_with_new_block_id != nil &&
            new_state.block.timestamp == block_mined_by_this_node_with_new_block_id.timestamp do
-        Logger.debug(
-          "Inside #{inspect(__MODULE__)} Update wallet. #{inspect(new_state.node_id)} node #{
-            inspect(new_state.node_id)
-          } mined this-#{inspect(new_state.block.block_id)} block."
-        )
+        Logger.debug("Update wallet. node #{inspect(new_state.node_id)} mined this-#{inspect(new_state.block.block_id)} block.")
 
         new_state = %{
           new_state
@@ -396,11 +382,11 @@ defmodule SB.Node do
 
         new_state
       else
-        Logger.debug(
-          "Inside #{inspect(__MODULE__)} Update wallet. #{inspect(new_state.node_id)} node #{
-            inspect(new_state.node_id)
-          } did not mine this-#{inspect(new_state.block.block_id)} block"
-        )
+        Logger.debug("Update wallet. #{inspect(new_state.node_id)} node did not mine this-#{inspect(new_state.block.block_id)} block")
+        Logger.debug("Update wallet. Updated block ts-#{inspect new_state.block.timestamp} this block ts - #{inspect :ets.lookup(:ets_mine_jobs, %{node_id: new_state.node_id,
+          val: :block,
+          id: new_state.block.block_id
+        })}")
 
         new_state
       end
@@ -408,7 +394,7 @@ defmodule SB.Node do
     new_state
   end
 
-  defp add_to_repo(block, miner_id) do
+  defp add_to_repo(block, miner_pid) do
     block_hash = SB.CryptoHandle.hash(inspect(block), :sha256)
     miner_approvers_list_out = :ets.lookup(:ets_trans_repo, block_hash)
 
@@ -421,7 +407,7 @@ defmodule SB.Node do
         list
       end
 
-    updated_list = List.insert_at(miner_approvers_list, -1, miner_id)
+    updated_list = List.insert_at(miner_approvers_list, -1, miner_pid)
     :ets.insert(:ets_trans_repo, {block_hash, updated_list})
 
     # NUM MINERS end

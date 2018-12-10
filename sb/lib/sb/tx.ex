@@ -9,6 +9,7 @@ defmodule SB.Tx do
   end
 
   def get_json(filename) do
+    #Logger.debug("Looking for file: #{inspect filename}")
     with {:ok, body} <- File.read(filename), {:ok, json} <- Poison.decode(body), do: {:ok, json}
   end
 
@@ -22,7 +23,7 @@ defmodule SB.Tx do
       path
       |> get_json
 
-    Logger.debug("content: " <> inspect(content))
+    #Logger.debug("content: " <> inspect(content))
 
     case Map.has_key?(json, tx_id) do
       true ->
@@ -60,11 +61,11 @@ defmodule SB.Tx do
   end
 
   def write_json(node_id, type, content) when content == %{} do
-    Logger.debug("---------Content empty--------")
-    Logger.debug("Type: " <> inspect(type))
+    #Logger.debug("---------Content empty--------")
+    #Logger.debug("Type: " <> inspect(type))
 
     path = Path.absname("./lib/data/")
-    Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
     filename = node_id <> type <> ".json"
     :ok = File.mkdir_p!(path)
 
@@ -77,13 +78,13 @@ defmodule SB.Tx do
 
   def write_json(node_id, type, content) do
     path = Path.absname("./lib/data/")
-    Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
+    #Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
     filename = node_id <> type <> ".json"
     :ok = File.mkdir_p!(path)
 
-    Logger.debug("---------Content not empty--------")
-    Logger.debug("Content: " <> inspect(content))
-    Logger.debug("Type: " <> inspect(type))
+    #Logger.debug("---------Content not empty--------")
+    #Logger.debug("Content: " <> inspect(content))
+    #Logger.debug("Type: " <> inspect(type))
 
     json_encoded_content =
       append_json(node_id, type, path <> "/" <> filename, content)
@@ -150,7 +151,7 @@ defmodule SB.Tx do
       |> String.upcase()
 
     for utxo <- utxos do
-      Logger.debug("Current UTXO: " <> inspect(utxo))
+      #Logger.debug("Current UTXO: " <> inspect(utxo))
 
       script_len =
         utxo[:scriptPubKey]
@@ -165,15 +166,15 @@ defmodule SB.Tx do
           script_len
         end
 
-      Logger.debug("Script len of current input's pubKeyScript: " <> inspect(script_len))
+      #Logger.debug("Script len of current input's pubKeyScript: " <> inspect(script_len))
 
       outpoint_hash = utxo[:hash]
       outpoint_index = to_string(utxo[:out_index])
       signature_script = utxo[:scriptPubKey]
 
-      Logger.debug("Outpoint hash: " <> inspect(outpoint_hash))
-      Logger.debug("Outpoint index: " <> inspect(outpoint_index))
-      Logger.debug("Signature script (Placehoded by pubKeyScript)" <> inspect(signature_script))
+      #Logger.debug("Outpoint hash: " <> inspect(outpoint_hash))
+      #Logger.debug("Outpoint index: " <> inspect(outpoint_index))
+      #Logger.debug("Signature script (Placehoded by pubKeyScript)" <> inspect(signature_script))
 
       %{
         prev_hash: outpoint_hash,
@@ -190,7 +191,7 @@ defmodule SB.Tx do
   end
 
   def create_transaction_block(node_id, utxos, bc_addr, amount) do
-    Logger.debug("---------Creating Transaction-----------")
+    #Logger.debug("---------Creating Transaction-----------")
 
     # transaction = (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time <> sigHash)
 
@@ -215,13 +216,13 @@ defmodule SB.Tx do
       bc_addr
       |> string_slice(2, -9)
 
-    Logger.debug("PubKey Hash: " <> inspect(pub_key_hash))
+    #Logger.debug("PubKey Hash: " <> inspect(pub_key_hash))
 
     scriptPubKey =
       ("76a914" <> pub_key_hash <> "88ac")
       |> String.upcase()
 
-    Logger.debug("scriptPubKey: " <> inspect(scriptPubKey))
+    #Logger.debug("scriptPubKey: " <> inspect(scriptPubKey))
 
     script_len =
       scriptPubKey
@@ -236,7 +237,7 @@ defmodule SB.Tx do
         script_len
       end
 
-    Logger.debug("script len: " <> inspect(script_len))
+    #Logger.debug("script len: " <> inspect(script_len))
 
     amount =
       amount
@@ -249,13 +250,13 @@ defmodule SB.Tx do
         amount
       end
 
-    Logger.debug("Amount: " <> inspect(amount))
+    #Logger.debug("Amount: " <> inspect(amount))
 
     outputs = outputs ++ [%{value: amount, script_len: script_len, scriptPubKey: scriptPubKey}]
-    Logger.debug("---> Outputs: " <> inspect(outputs))
+    #Logger.debug("---> Outputs: " <> inspect(outputs))
 
     tx_out = amount <> script_len <> scriptPubKey
-    Logger.debug("TX_OUT: " <> inspect(tx_out))
+    #Logger.debug("TX_OUT: " <> inspect(tx_out))
 
     num_outputs =
       length(outputs)
@@ -268,7 +269,7 @@ defmodule SB.Tx do
         num_outputs
       end
 
-    Logger.debug("Number of outputs: " <> inspect(num_outputs))
+    #Logger.debug("Number of outputs: " <> inspect(num_outputs))
 
     # Creating inputs
     # inputs = [
@@ -297,7 +298,7 @@ defmodule SB.Tx do
     #   inputs_with_hash
     #   |> Enum.map(fn input -> Map.delete(input, :input_for_hash) end)
 
-    Logger.debug("Inputs: " <> inspect(inputs))
+    #Logger.debug("Inputs: " <> inspect(inputs))
 
     # Enum.each(utxos, fn utxo ->
     #   nil
@@ -314,10 +315,10 @@ defmodule SB.Tx do
         num_inputs
       end
 
-    Logger.debug("Number of inputs: " <> inspect(num_inputs))
+    #Logger.debug("Number of inputs: " <> inspect(num_inputs))
 
     transaction = transaction <> num_inputs
-    Logger.debug("Transaction + num_inputs: " <> inspect(transaction))
+    #Logger.debug("Transaction + num_inputs: " <> inspect(transaction))
 
     # Evaluating ScriptSig for each input
 
@@ -329,15 +330,15 @@ defmodule SB.Tx do
       path
       |> get_json
 
-    Logger.debug("Keys map: " <> inspect(keys_map))
+    #Logger.debug("Keys map: " <> inspect(keys_map))
 
     pid = node_id
-    # Logger.debug("Finding Pvt key for pid iter: " <> inspect(pid))
+    # #Logger.debug("Finding Pvt key for pid iter: " <> inspect(pid))
     private_key = keys_map[pid]["private_key"]
-    # Logger.debug("Pvt key in iter: " <> inspect(private_key))
+    # #Logger.debug("Pvt key in iter: " <> inspect(private_key))
 
     public_key = keys_map[pid]["public_key"]
-    # Logger.debug("Pub key in iter: " <> inspect(public_key))
+    # #Logger.debug("Pub key in iter: " <> inspect(public_key))
 
     scriptSigs =
       for iter <- 0..(length(inputs) - 1) do
@@ -349,27 +350,27 @@ defmodule SB.Tx do
               input
 
             {:error} ->
-              Logger.debug("Eror in fetching the input")
+              #Logger.debug("Eror in fetching the input")
               {:error, "No such input"}
           end
 
-        # Logger.debug("Input in iteration: " <> inspect(input))
+        # #Logger.debug("Input in iteration: " <> inspect(input))
 
         # input_index = Enum.find_index(inputs, fn ip -> input == ip end)
-        # Logger.debug("Input index: " <> inspect(input_index))
+        # #Logger.debug("Input index: " <> inspect(input_index))
 
         input_for_hash =
           input
           |> generate_input_for_hash()
 
-        Logger.debug("Input for hash in iteration: " <> inspect(input_for_hash))
+        #Logger.debug("Input for hash in iteration: " <> inspect(input_for_hash))
 
         {:ok, binary_transaction} =
           (version <> num_inputs <> input_for_hash <> num_outputs <> tx_out)
           |> Base.decode16()
 
         # <> locktime <> sigHash)
-        # Logger.debug("Binary tx in iter: " <> inspect(binary_transaction |> byte_size()))
+        # #Logger.debug("Binary tx in iter: " <> inspect(binary_transaction |> byte_size()))
 
         signature =
           binary_transaction
@@ -397,18 +398,18 @@ defmodule SB.Tx do
           signature
           |> Base.encode16()
 
-        Logger.debug("Signature: " <> inspect(signature))
+        #Logger.debug("Signature: " <> inspect(signature))
         sig_length <> signature <> public_key
       end
 
-    Logger.debug("scriptSigs: " <> inspect(scriptSigs))
+    #Logger.debug("scriptSigs: " <> inspect(scriptSigs))
 
     # Inserting scriptsig in each of the inputs
 
     inputs =
       for input <- inputs do
         scriptSig_index = Enum.find_index(inputs, fn ip -> input == ip end)
-        Logger.debug("scriptSig Index : " <> inspect(scriptSig_index))
+        #Logger.debug("scriptSig Index : " <> inspect(scriptSig_index))
         scriptSig = Enum.fetch(scriptSigs, scriptSig_index)
 
         {:ok, scriptSig} =
@@ -417,14 +418,14 @@ defmodule SB.Tx do
               scriptSig
 
             {:error} ->
-              Logger.debug("Eror fetching the scriptSig")
+              #Logger.debug("Eror fetching the scriptSig")
               {:error, "No such scriptSig"}
           end
 
         Map.replace(input, :scriptSig, scriptSig)
       end
 
-    Logger.debug("Inputs after replacing with original scriptSig: " <> inspect(inputs))
+    #Logger.debug("Inputs after replacing with original scriptSig: " <> inspect(inputs))
 
     tx = %{
       version: version,
@@ -451,12 +452,12 @@ defmodule SB.Tx do
     inputs_for_hash =
       Enum.reduce(tx[:inputs], "", fn input, acc -> acc <> generate_input_for_hash(input) end)
 
-    Logger.debug("Ip TX String: " <> inspect(inputs_for_hash))
+    #Logger.debug("Ip TX String: " <> inspect(inputs_for_hash))
 
     outputs_for_hash =
       Enum.reduce(tx[:outputs], "", fn output, acc -> acc <> generate_output_for_hash(output) end)
 
-    Logger.debug("Op TX String: " <> inspect(outputs_for_hash))
+    #Logger.debug("Op TX String: " <> inspect(outputs_for_hash))
     tx[:version] <> tx[:num_inputs] <> inputs_for_hash <> tx[:num_outputs] <> outputs_for_hash
   end
 
@@ -517,13 +518,13 @@ defmodule SB.Tx do
 
     #      |> SB.CryptoHandle.generate_address()
 
-    Logger.debug("pk_hash: " <> inspect(pub_key_hash))
+    #Logger.debug("pk_hash: " <> inspect(pub_key_hash))
 
     pk_script =
       ("76a914" <> pub_key_hash <> "88ac")
       |> String.upcase()
 
-    Logger.debug("pk_script_: " <> inspect(pk_script))
+    #Logger.debug("pk_script_: " <> inspect(pk_script))
 
     # "4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac"
 
@@ -538,7 +539,7 @@ defmodule SB.Tx do
 
     # |> byte_size
 
-    Logger.debug("pk_script_length: " <> inspect(pk_script_length))
+    #Logger.debug("pk_script_length: " <> inspect(pk_script_length))
 
     # We can decode this.
     # 41 push the next 65 bytes onto the stack
@@ -557,8 +558,8 @@ defmodule SB.Tx do
       |> Binary.from_hex()
 
     # lock_time
-    Logger.debug("Transaction: " <> inspect(transaction |> Base.encode16()))
-    # Logger.debug("Transaction: " <> inspect(transaction |> Base.encode16()))
+    #Logger.debug("Transaction: " <> inspect(transaction |> Base.encode16()))
+    # #Logger.debug("Transaction: " <> inspect(transaction |> Base.encode16()))
 
     trans_hash =
       transaction
@@ -595,7 +596,7 @@ defmodule SB.Tx do
   #     write_json("utxo", %{})
   #     write_json("keys", %{})
   #     content = coinbase_transaction()
-  #     Logger.debug("Content: " <> inspect(content))
+  #     #Logger.debug("Content: " <> inspect(content))
 
   #     write_json("tx", content)
 

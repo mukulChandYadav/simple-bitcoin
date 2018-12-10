@@ -30,6 +30,10 @@ defmodule SB.Wallet do
     }
 
     # TODO Initialize wallet state from static file
+    prefix = "76A914"
+    suffix = "88AC"
+    wallet_addr = prefix <> SB.CryptoHandle.generate_public_hash_hex(opts.public_key) <> suffix
+    :ets.insert(:ets_wallet_addrs, {wallet_addr, self()})
 
     {:ok, wallet_state}
   end
@@ -39,7 +43,21 @@ defmodule SB.Wallet do
   end
 
   def handle_call(:get_pub_key, _from, state) do
-    {:reply, :ok, state.public_key}
+    {:reply, {:ok, state.public_key}, state}
+  end
+
+  def handle_call({:update_wallet_receiver, tx}, _from, state) do
+
+    SB.Tx.update_utxo_json(:receiver, state.owner_id, tx)
+
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:update_wallet_sender, tx}, _from, state) do
+
+    SB.Tx.update_utxo_json(:sender, state.owner_id, tx)
+
+    {:reply, :ok, state}
   end
 
   def create_utxos(utxos, _, _, remaining_amount) when remaining_amount <= 0 do
@@ -56,15 +74,15 @@ defmodule SB.Wallet do
     create_utxos(utxos, utxos_map, utxo_keys, key_index + 1, remaining_amount - utxo_amount)
   end
 
-  def handle_call({:get_balance}, state) do
+  def handle_call(:get_balance, _from, state) do
     balance = 0
     node_id = state.owner_id
 
     path = Path.absname("./lib/data/")
-    Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
-    filename = node_id <> "utxo" <> ".json"
+    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    filename = inspect(node_id) <> "utxo" <> ".json"
 
-    utxos_map =
+    {:ok, utxos_map} =
       (path <> "/" <> filename)
       |> SB.Tx.get_json()
 
@@ -81,8 +99,8 @@ defmodule SB.Wallet do
         acc + transaction_balance
       end)
 
-    Logger.debug("Balance: " <> inspect(balance))
-    {:reply, :ok, balance}
+    #Logger.debug("Balance: " <> inspect(balance))
+    {:reply, {:ok, balance}, state}
   end
 
   def handle_call(
@@ -98,7 +116,7 @@ defmodule SB.Wallet do
 
     # Pick up the utxos for the specified amount and call create_transaction_block with their list and btc address
     path = Path.absname("./lib/data/")
-    Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
     filename = state.node_id <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
@@ -127,7 +145,7 @@ defmodule SB.Wallet do
         map
       end
 
-    :ets.insert(:ets_trans_repo, {:new_tranx, Map.put(map, tx.id, tx)})
+    :ets.insert(:ets_trans_repo, {:new_tranx, Map.put(map, tx.hash, tx)})
 
     SB.Node.get_miners()
     |> Enum.map(fn miner -> GenEvent.notify(miner, {:new_transaction, tx}) end)
@@ -144,6 +162,7 @@ defmodule SB.Wallet do
     updated_wallet = wallet
 
     # Logger.debug("Inside #{inspect __MODULE__} Update wallet. Before updated blocks #{inspect updated_wallet.blocks}")
+    Logger.debug("Update wallet. Before updated blocks #{inspect block.tx}")
     updated_blocks = updated_wallet.blocks ++ [block]
 
     # Logger.debug("Inside #{inspect __MODULE__} Update wallet. After updated blocks #{inspect updated_blocks}")
@@ -159,6 +178,37 @@ defmodule SB.Wallet do
 
   def update_wallet_with_new_tx(wallet, new_tx) do
     # TODO: Update files after transaction validation from the miners
+
+    num_inputs = Integer.parse(new_tx.num_inputs)
+    # Assuming last output is change output back to receiver
+    sender_wallet_addr_hash = List.last(new_tx.outputs).scriptPubKey
+    for x <- 1..num_inputs do
+      input = Enum.fetch(new_tx.inputs, x - 1)
+      wallet_pid = lookup_wallet_pid(sender_wallet_addr_hash)
+      GenServer.call(wallet_pid, {:update_wallet_sender, new_tx})
+    end
+
+    num_outputs = Integer.parse(new_tx.num_outputs)
+    for x <- 1..num_outputs do
+      output = Enum.fetch(new_tx.outputs, x - 1)
+      wallet_pid = lookup_wallet_pid(output.scriptPubKey)
+      GenServer.call(wallet_pid, {:update_wallet_receiver, new_tx})
+    end
+
+
+  end
+
+  defp lookup_wallet_pid(script_pub_key) do
+
+    wallet_pid =
+      try do
+        [{_, wallet_pid}] = :ets.lookup(:ets_wallet_addrs, script_pub_key)
+        # Registry.lookup(SB.Registry.NodeInfo, %{node_id: state.node_id, val: :nonce})
+        wallet_pid
+      rescue
+        e in [MatchError] ->
+          nil
+      end
   end
 
   defp update_wallet_balance(wallet, block) do

@@ -81,6 +81,13 @@ defmodule SB.CryptoHandle do
     |> hash(:ripemd160)
   end
 
+  def generate_public_hash_hex(public_key_bin) do
+    public_key_bin
+    |> hash(:sha256)
+    |> hash(:ripemd160)
+    |> Base.encode16()
+  end
+
   defp leading_zeros(data) do
     :binary.bin_to_list(data)
     |> Enum.find_index(&(&1 != 0))
