@@ -12,11 +12,17 @@ defmodule SBTest do
   @tag timeout: 100000000
   test "start network" do
     perform_test()
+    perform_tx_test()
   end
-
 
   defp perform_test() do
     SB.Master.init_network()
+    Process.sleep(1000000000);
+    assert true
+  end
+
+  defp perform_tx_test() do
+    Process.sleep(1000000000);
     assert true
   end
 

@@ -22,6 +22,7 @@ defmodule SB.Master do
     miners_table = :ets.new(:ets_miners, [:public, :set, :named_table])
     trans_table = :ets.new(:ets_trans_repo, [:public, :set, :named_table])
     mine_job_table = :ets.new(:ets_mine_jobs, [:public, :set, :named_table])
+    wallet_address_table = :ets.new(:ets_wallet_addrs, [:public, :set, :named_table])
 
     path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
@@ -36,7 +37,7 @@ defmodule SB.Master do
 
   def handle_info(:init, _from, state) do
     Logger.debug("Inside #{inspect(__MODULE__)} init")
-    init_network
+    init_network()
 
     {:reply, :ok, state}
   end
@@ -63,6 +64,5 @@ defmodule SB.Master do
       send(node_pid, {:mine, nil})
     end
 
-    Process.sleep(1_000_000_000)
   end
 end
