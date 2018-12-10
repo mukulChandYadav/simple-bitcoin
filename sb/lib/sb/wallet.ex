@@ -48,9 +48,11 @@ defmodule SB.Wallet do
 
   def create_utxos(utxos, utxos_map, utxo_keys, key_index, remaining_amount) do
     key = Enum.fetch(utxo_keys, key_index)
-    utxo = Map.get(utxos_map, key)
+    utxo = utxos_map[key]
+    # Map.get(utxos_map, key)
 
-    utxos = utxos ++ [utxo]
+    out_index_key = Map.keys(utxo) |> List.first()
+    utxos = utxos ++ [utxo[out_index_key]]
     utxo_amount = utxo[:value] |> String.to_integer(16)
 
     create_utxos(utxos, utxos_map, utxo_keys, key_index + 1, remaining_amount - utxo_amount)
@@ -102,7 +104,7 @@ defmodule SB.Wallet do
     filename = state.node_id <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
-    utxos_map = SB.Tx.get_json(path)
+    utxos_map = SB.Tx.get_json(path <> "/" <> filename)
     utxo_keys = Map.keys(utxos_map)
 
     utxos = create_utxos([], utxos_map, utxo_keys, 0, amount)

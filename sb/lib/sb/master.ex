@@ -23,6 +23,14 @@ defmodule SB.Master do
     trans_table = :ets.new(:ets_trans_repo, [:public, :set, :named_table])
     mine_job_table = :ets.new(:ets_mine_jobs, [:public, :set, :named_table])
 
+    path = Path.absname("./lib/data/")
+    Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+
+    # Delete and recreate the data folder to remove all the files
+    path = Path.absname("./lib/data")
+    File.rm_rf(path)
+    File.mkdir_p(path)
+
     {:ok, %{}}
   end
 

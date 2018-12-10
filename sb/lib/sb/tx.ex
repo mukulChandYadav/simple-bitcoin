@@ -185,11 +185,63 @@ defmodule SB.Tx do
     end
   end
 
+  def update_utxo_json(:sender, node_id, tx) do
+    change_output = List.last(tx[:outputs])
+    value = change_output[:value]
+    scriptPubKey = change_output[:scriptPubKey]
+
+    trans_hash = Map.keys(tx) |> List.first()
+    out_index = "00000001"
+
+    utxo_lvl_2 =
+      Map.put(%{}, :value, value)
+      |> Map.put(:scriptPubKey, scriptPubKey)
+
+    utxo_lvl_1 = Map.put(%{}, out_index, utxo_lvl_2)
+
+    utxo = Map.put(%{}, trans_hash, utxo_lvl_1)
+
+    content = Poison.encode(utxo)
+
+    path = Path.absname("./lib/data/")
+    Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
+    filename = node_id <> "utxo" <> ".json"
+    :ok = File.mkdir_p!(path)
+
+    File.write!(path <> "/" <> filename, content)
+  end
+
+  def update_utxo_json(:receiver, node_id, tx) do
+    change_output = List.first(tx[:outputs])
+    value = change_output[:value]
+    scriptPubKey = change_output[:scriptPubKey]
+
+    trans_hash = Map.keys(tx) |> List.first()
+    out_index = "00000000"
+
+    utxo_lvl_2 =
+      Map.put(%{}, :value, value)
+      |> Map.put(:scriptPubKey, scriptPubKey)
+
+    utxo_lvl_1 = Map.put(%{}, out_index, utxo_lvl_2)
+
+    utxo = Map.put(%{}, trans_hash, utxo_lvl_1)
+
+    content = Poison.encode(utxo)
+
+    path = Path.absname("./lib/data/")
+    Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
+    filename = node_id <> "utxo" <> ".json"
+    :ok = File.mkdir_p!(path)
+
+    File.write!(path <> "/" <> filename, content)
+  end
+
   def create_transaction_block(_, utxos, _, _) when utxos == [] do
     false
   end
 
-  def create_transaction_block(node_id, utxos, bc_addr, amount) do
+  def create_transaction_block(node_id, utxos, receiver_bc_addr, amount) do
     Logger.debug("---------Creating Transaction-----------")
 
     # transaction = (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time <> sigHash)
@@ -199,6 +251,39 @@ defmodule SB.Tx do
     transaction = transaction <> version
     # locktime = "00000000"
     # sigHash = "01000000"
+
+    # Get the existing balnce in the input and calculate the remaining balance after the transaction accordingly
+    input_utxo = List.first(utxos)
+
+    input_values =
+      for {_, out_index_map} <- input_utxo do
+        balance =
+          Enum.reduce(out_index_map, {}, fn {k, v}, acc ->
+            curr_balance =
+              v[:value]
+              |> String.to_integer(16)
+
+            debit =
+              amount
+              |> String.to_integer(16)
+
+            scriptPubkey = out_index_map[:scriptPubKey]
+            acc = Tuple.insert_at(acc, 0, scriptPubkey)
+            acc = Tuple.insert_at(acc, 0, curr_balance - debit)
+
+            acc
+          end)
+      end
+
+    {remaining_balance, change_scriptPubKey} =
+      input_values
+      |> List.first()
+
+    change_script_len =
+      change_scriptPubKey
+      |> Binary.from_hex()
+      |> byte_size()
+      |> to_string()
 
     # Creating outputs
     # outputs = [
@@ -212,7 +297,7 @@ defmodule SB.Tx do
     outputs = []
 
     pub_key_hash =
-      bc_addr
+      receiver_bc_addr
       |> string_slice(2, -9)
 
     Logger.debug("PubKey Hash: " <> inspect(pub_key_hash))
@@ -251,7 +336,19 @@ defmodule SB.Tx do
 
     Logger.debug("Amount: " <> inspect(amount))
 
-    outputs = outputs ++ [%{value: amount, script_len: script_len, scriptPubKey: scriptPubKey}]
+    outputs =
+      outputs ++
+        [
+          %{value: amount, script_len: script_len, scriptPubKey: scriptPubKey}
+        ] ++
+        [
+          %{
+            value: remaining_balance,
+            script_len: change_script_len,
+            scriptPubKey: change_scriptPubKey
+          }
+        ]
+
     Logger.debug("---> Outputs: " <> inspect(outputs))
 
     tx_out = amount <> script_len <> scriptPubKey
