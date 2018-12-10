@@ -218,20 +218,28 @@ defmodule SB.Tx do
   def update_utxo_json(:receiver, node_id, tx) do
     change_output = List.first(tx[:outputs])
     value = change_output[:value]
-    scriptPubKey = change_output[:scriptPubKey]
 
-    trans_hash = Map.keys(tx) |> List.first()
-    out_index = "00000000"
+    content =
+      if(value |> String.to_integer(16) != 0) do
+        scriptPubKey = change_output[:scriptPubKey]
 
-    utxo_lvl_2 =
-      Map.put(%{}, :value, value)
-      |> Map.put(:scriptPubKey, scriptPubKey)
+        trans_hash = Map.keys(tx) |> List.first()
+        out_index = "00000000"
 
-    utxo_lvl_1 = Map.put(%{}, out_index, utxo_lvl_2)
+        utxo_lvl_2 =
+          Map.put(%{}, :value, value)
+          |> Map.put(:scriptPubKey, scriptPubKey)
 
-    utxo = Map.put(%{}, trans_hash, utxo_lvl_1)
+        utxo_lvl_1 = Map.put(%{}, out_index, utxo_lvl_2)
 
-    {:ok, content} = Poison.encode(utxo)
+        utxo = Map.put(%{}, trans_hash, utxo_lvl_1)
+
+        {:ok, content} = Poison.encode(utxo)
+        content
+      else
+        {:ok, content} = Poison.encode(%{})
+        content
+      end
 
     path = Path.absname("./lib/data/")
     Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
@@ -561,7 +569,7 @@ defmodule SB.Tx do
     tx[:version] <> tx[:num_inputs] <> inputs_for_hash <> tx[:num_outputs] <> outputs_for_hash
   end
 
-  def coinbase_transaction(btc_addr_hash, amt_in_satoshis) do
+  def coinbase_transaction(amt_in_satoshis, public_key) do
     # version 1, uint32_t
     version = "01000000"
 
@@ -605,9 +613,9 @@ defmodule SB.Tx do
     value = String.duplicate("0", pad) <> value
 
     # The scriptPubKey saying where the coins are going.
-    private_key = SB.CryptoHandle.generate_private_key()
+    # private_key = SB.CryptoHandle.generate_private_key()
 
-    public_key = btc_addr_hash
+    # public_key = btc_addr_hash
     # private_key
     # |> SB.CryptoHandle.generate_public_key()
 

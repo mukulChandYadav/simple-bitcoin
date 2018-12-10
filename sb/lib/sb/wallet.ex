@@ -39,7 +39,7 @@ defmodule SB.Wallet do
   end
 
   def handle_call(:get_state_info, _from, state) do
-    {:reply, {:ok, state}, state}
+    {:reply, state, state}
   end
 
   def handle_call(:get_pub_key, _from, state) do
@@ -134,11 +134,29 @@ defmodule SB.Wallet do
     {:reply, :ok, state}
   end
 
+  def handle_call(
+        {:create_coinbase_transaction, amount},
+        _from,
+        state
+      ) do
+    # Convert to satoshis
+    satoshi_multiplier = 100_000_000
+    amount = (amount * satoshi_multiplier) |> trunc()
+
+    tx = SB.Tx.coinbase_transaction(amount, state.public_key)
+
+    Logger.debug("Created coinbase tx block: " <> inspect(tx))
+
+    publish_transaction(tx)
+    {:reply, :ok, state}
+  end
+
   defp publish_transaction(tx) do
     out = :ets.lookup(:ets_trans_repo, :new_tranx)
-    #### Logger.debug("#{inspect __MODULE__} Get Miners : #{inspect out} ")
+    Logger.debug("Publish tx called : #{inspect(out)} ")
+
     map =
-      if(out == nil) do
+      if(out == nil || out == []) do
         %{}
       else
         [{_, map}] = out
@@ -148,11 +166,7 @@ defmodule SB.Wallet do
     :ets.insert(:ets_trans_repo, {:new_tranx, Map.put(map, tx.hash, tx)})
 
     SB.Node.get_miners()
-    |> Enum.map(fn miner -> GenEvent.notify(miner, {:new_transaction, tx}) end)
-  end
-
-  def handle_call(_msg, _from, state) do
-    {:reply, :ok, state}
+    |> Enum.map(fn miner -> send(miner, {:new_transaction, tx}) end)
   end
 
   # TODO: Save and load wallet from files
@@ -220,5 +234,9 @@ defmodule SB.Wallet do
     #    updated_wallet = %{updated_wallet | balance: balance}
     # updated_wallet
     wallet
+  end
+
+  def handle_call(_msg, _from, state) do
+    {:reply, :ok, state}
   end
 end

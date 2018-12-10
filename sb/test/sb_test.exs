@@ -9,7 +9,7 @@ defmodule SBTest do
     Logger.debug("Inside test setup ")
   end
 
-  @tag timeout: 100000000
+  @tag timeout: 100_000_000
   test "start network" do
     perform_test()
     perform_tx_test()
@@ -17,17 +17,51 @@ defmodule SBTest do
 
   defp perform_test() do
     SB.Master.init_network()
-    Process.sleep(5000);
+    # Process.sleep(5000)
     assert true
+  end
+
+  defp check_for_block_in_state(pid, block_id) when block_id > 0 do
+    block_id
+  end
+
+  defp check_for_block_in_state(pid, block_id) do
+    Process.sleep(1000)
+
+    state = GenServer.call(pid, :get_state)
+    Logger.debug("Block state now: " <> inspect(state))
+    check_for_block_in_state(pid, state.block.block_id)
   end
 
   defp perform_tx_test() do
-    Process.sleep(1000_000);
-    SB.Master.wait_till_genesis_coins_mined()
+    # Process.sleep(1000_000)
+    # SB.Master.wait_till_genesis_coins_mined()
 
-    #SB.Master.perform_tranx(0.1)
-    #TODO Improve assertion
-    assert true
+    amount = 0.1
+    wallet_pid = SB.Master.perform_tranx(amount)
+
+    Logger.debug(
+      "Call to get wallet state: " <> inspect(GenServer.call(wallet_pid, :get_state_info))
+    )
+
+    wallet_state = GenServer.call(wallet_pid, :get_state_info)
+
+    owner_pid = wallet_state.owner_pid
+    owner_state = GenServer.call(owner_pid, :get_state)
+
+    # Process.sleep(20000)
+
+    block = check_for_block_in_state(owner_pid, owner_state.block.block_id)
+    Logger.debug("Block test after coinbase: " <> inspect(block))
+
+    # TODO Improve assertion
+    {:ok, balance} = GenServer.call(wallet_pid, :get_balance)
+
+    Logger.debug(
+      "Amount*100000000 and balance: " <>
+        inspect(amount * 100_000_000) <> "  " <> inspect(balance)
+    )
+
+    assert balance == amount * 100_000_000 && block != nil
   end
-
 end
