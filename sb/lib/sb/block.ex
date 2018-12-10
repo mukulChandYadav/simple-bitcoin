@@ -36,6 +36,7 @@ defmodule SB.Block do
     new_block = %{new_block | block_id: new_block_id}
 
     txs = List.insert_at(base_block.tx, -1, new_tx)
+    new_block = %{new_block | tx: txs}
 
     prev_block =
       if(base_block.block_id == 0) do

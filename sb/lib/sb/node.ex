@@ -65,6 +65,30 @@ defmodule SB.Node do
     {:ok, wallet_state} = GenServer.call(wallet_pid, :get_state_info)
     node_state = put_in(node_state.wallet, wallet_state)
 
+    #Create UTXO file for this node
+    path = Path.absname("./lib/data/")
+    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    filename = inspect(node_id) <> "utxo" <> ".json"
+    :ok = File.mkdir_p!(path)
+
+    json_encoded_content =
+      %{}
+      |> Poison.encode!()
+
+    File.write!(path <> "/" <> filename, json_encoded_content)
+
+    #Create TX file for this node
+    path = Path.absname("./lib/data/")
+    #Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
+    filename = inspect(node_id) <> "tx" <> ".json"
+    :ok = File.mkdir_p!(path)
+
+    json_encoded_content =
+      %{}
+      |> Poison.encode!()
+
+    File.write!(path <> "/" <> filename, json_encoded_content)
+
     # send(self, :mine)
     ##### Logger.debug("Inside #{inspect __MODULE__} Node state - #{inspect node_state} for #{inspect self}")
     {:ok, node_state}
@@ -196,7 +220,7 @@ defmodule SB.Node do
   end
 
   def handle_cast({:new_block_registered, block}, state) do
-    ## Logger.debug("#{inspect __MODULE__} Approved block - #{inspect block} received by #{inspect state}")
+    Logger.debug("Approved block - #{inspect block}")
 
     new_state = %{state | block: block}
 

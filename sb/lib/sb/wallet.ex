@@ -181,7 +181,8 @@ defmodule SB.Wallet do
   def update_wallet_with_new_tx(wallet, new_tx) do
     # TODO: Update files after transaction validation from the miners
 
-    num_inputs = Integer.parse(new_tx.num_inputs)
+    Logger.debug("Update wallet with tx - #{inspect new_tx}")
+    {num_inputs,_} = Integer.parse(new_tx.num_inputs)
     # Assuming last output is change output back to receiver
     sender_wallet_addr_hash = List.last(new_tx.outputs).scriptPubKey
     for x <- 1..num_inputs do
