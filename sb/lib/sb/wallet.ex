@@ -92,7 +92,6 @@ defmodule SB.Wallet do
       Enum.reduce(utxos_map, 0, fn {_, utxo}, acc ->
         transaction_balance =
           Enum.reduce(utxo, 0, fn {_, out_index_map}, sum ->
-            Logger.debug("Out index map: " <> inspect(out_index_map))
             amount = out_index_map["value"] |> String.to_integer(16)
             sum + amount
           end)
@@ -198,7 +197,6 @@ defmodule SB.Wallet do
       {:ok, output} = Enum.fetch(new_tx.outputs, x - 1)
       Logger.debug("Output: " <> inspect(output))
       wallet_pid = lookup_wallet_pid(output.scriptPubKey)
-      Logger.debug("Wallet_pid: " <> inspect(wallet_pid))
       GenServer.call(wallet_pid, {:update_wallet_receiver, new_tx})
     end
   end
