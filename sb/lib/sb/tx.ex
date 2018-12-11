@@ -98,6 +98,8 @@ defmodule SB.Tx do
   end
 
   def generate_signature(message, private_key) do
+    Logger.debug("Pvt_key: " <> inspect(private_key))
+
     {:ok, private} =
       private_key
       |> Base.decode16()
@@ -223,14 +225,17 @@ defmodule SB.Tx do
   end
 
   def update_utxo_json(:receiver, node_id, tx) do
+    Logger.debug(inspect(node_id) <> "Reciever " <> inspect(tx))
     change_output = List.first(tx[:outputs])
     value = change_output[:value]
 
     content =
       if(value |> String.to_integer(16) != 0) do
+        Logger.debug(inspect(node_id) <> " Amount is not 0: " <> inspect(tx))
         scriptPubKey = change_output[:scriptPubKey]
 
-        trans_hash = Map.keys(tx) |> List.first()
+        trans_hash = tx[:hash]
+        Map.keys(tx) |> List.first()
         out_index = "00000000"
 
         utxo_lvl_2 =
@@ -250,7 +255,7 @@ defmodule SB.Tx do
       end
 
     path = Path.absname("./lib/data/")
-    Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
+    # Logger.debug(inspect(__MODULE__) <> " Dir path: " <> inspect(path))
     filename = inspect(node_id) <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
@@ -271,6 +276,8 @@ defmodule SB.Tx do
     transaction = transaction <> version
     # locktime = "00000000"
     # sigHash = "01000000"
+    private_key = private_key |> Base.encode16()
+    public_key = public_key |> Base.encode16()
 
     # Get the existing balnce in the input and calculate the remaining balance after the transaction accordingly
     input_utxo = List.first(utxos)

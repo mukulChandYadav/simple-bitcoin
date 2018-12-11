@@ -192,69 +192,35 @@ defmodule SB.Wallet do
 
   # TODO: Save and load wallet from files
 
-  def update_wallet_with_block(wallet, block) do
-    # TODO
-    updated_wallet = wallet
-
-    # Logger.debug("Inside #{inspect __MODULE__} Update wallet. Before updated blocks #{inspect updated_wallet.blocks}")
-    Logger.debug("Update wallet. Before updated blocks #{inspect(block.tx)}")
-    updated_blocks = updated_wallet.blocks ++ [block]
-
-    # Logger.debug("Inside #{inspect __MODULE__} Update wallet. After updated blocks #{inspect updated_blocks}")
-    # TODO Add block present in wallet blocks check
-    updated_wallet = %{updated_wallet | blocks: updated_blocks}
-
-    # TODO Update balance from transaction for blocks on this wallet
-    updated_wallet = update_wallet_balance(updated_wallet, block)
-
-    # Logger.debug("Inside #{inspect __MODULE__} Update wallet. #{inspect updated_wallet.blocks} with block - #{inspect block.block_id}")
-    updated_wallet
-  end
-
   def update_wallet_with_new_tx(wallet, new_tx) do
     # TODO: Update files after transaction validation from the miners
 
     Logger.debug("Update wallet with tx - #{inspect(new_tx)}")
     {num_inputs, _} = Integer.parse(new_tx.num_inputs)
-    # Assuming last output is change output back to receiver
+    # Assuming last output is change output back to sender
     sender_wallet_addr_hash = List.last(new_tx.outputs).scriptPubKey
+    wallet_pid = lookup_wallet_pid(sender_wallet_addr_hash)
+    GenServer.call(wallet_pid, {:update_wallet_sender, new_tx})
 
-    for x <- 1..num_inputs do
-      input = Enum.fetch(new_tx.inputs, x - 1)
-      wallet_pid = lookup_wallet_pid(sender_wallet_addr_hash)
-      GenServer.call(wallet_pid, {:update_wallet_sender, new_tx})
-    end
-
+    # Assuming first output is output back to receiver
     {num_outputs, _} = Integer.parse(new_tx.num_outputs)
     Logger.debug("Number of Outputs: " <> inspect(num_outputs))
+    {:ok, output} = Enum.fetch(new_tx.outputs, 0)
+    wallet_pid = lookup_wallet_pid(output.scriptPubKey)
+    GenServer.call(wallet_pid, {:update_wallet_receiver, new_tx})
 
-    for x <- 1..num_outputs do
-      {:ok, output} = Enum.fetch(new_tx.outputs, x - 1)
-      Logger.debug("Output: " <> inspect(output))
-      wallet_pid = lookup_wallet_pid(output.scriptPubKey)
-      GenServer.call(wallet_pid, {:update_wallet_receiver, new_tx})
-    end
+    Logger.debug("End of output" <> inspect(num_outputs))
   end
 
   defp lookup_wallet_pid(script_pub_key) do
     wallet_pid =
       try do
         [{_, wallet_pid}] = :ets.lookup(:ets_wallet_addrs, script_pub_key)
-        # Registry.lookup(SB.Registry.NodeInfo, %{node_id: state.node_id, val: :nonce})
         wallet_pid
       rescue
         e in [MatchError] ->
           nil
       end
-  end
-
-  defp update_wallet_balance(wallet, block) do
-    # updated_wallet = wallet
-    #    new_tx = Enum.fetch(block.tx, -1)
-    #    balance = wallet.balance + new_tx.amount
-    #    updated_wallet = %{updated_wallet | balance: balance}
-    # updated_wallet
-    wallet
   end
 
   def handle_call(_msg, _from, state) do
