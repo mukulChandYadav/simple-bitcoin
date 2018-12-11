@@ -63,15 +63,21 @@ defmodule SB.Wallet do
   end
 
   def create_utxos(utxos, utxos_map, utxo_keys, key_index, remaining_amount) do
-    key = Enum.fetch(utxo_keys, key_index)
+    {:ok, key} = Enum.fetch(utxo_keys, key_index)
+    Logger.debug("Key for utxo: " <> inspect(key))
     utxo = utxos_map[key]
     # Map.get(utxos_map, key)
 
-    out_index_key = Map.keys(utxo) |> List.first()
-    utxos = utxos ++ [utxo[out_index_key]]
-    utxo_amount = utxo[:value] |> String.to_integer(16)
+    # out_index_key = Map.keys(utxo) |> List.first()
+    # Logger.debug("Key for utxo: " <> inspect(out_index_key))
+    # utxos = utxos ++ [utxo[out_index_key]]
+    # Logger.debug("utxos: " <> inspect(utxos))
+    # utxo_values = utxo[out_index_key]
+    # Logger.debug("UTXO value: " <> inspect(utxo_values))
+    # utxo_amount = utxo_values["value"] |> String.to_integer(16)
 
-    create_utxos(utxos, utxos_map, utxo_keys, key_index + 1, remaining_amount - utxo_amount)
+    utxos ++ [utxos_map]
+    # create_utxos(utxos, utxos_map, utxo_keys, key_index + 1, remaining_amount - utxo_amount)
   end
 
   def handle_call(:get_balance, _from, state) do
@@ -109,7 +115,7 @@ defmodule SB.Wallet do
         state
       ) do
     # Create transaction
-
+    Logger.debug("Working to create_tx and state: " <> inspect(state))
     # Convert to satoshis
     satoshi_multiplier = 100_000_000
     amount = (amount * satoshi_multiplier) |> trunc()
@@ -117,16 +123,30 @@ defmodule SB.Wallet do
     # Pick up the utxos for the specified amount and call create_transaction_block with their list and btc address
     path = Path.absname("./lib/data/")
     # Logger.debug(inspect(__MODULE__) <> "Dir path: " <> inspect(path))
-    filename = state.node_id <> "utxo" <> ".json"
+    node_id = inspect(state.owner_id)
+    filename = node_id <> "utxo" <> ".json"
     :ok = File.mkdir_p!(path)
 
-    utxos_map = SB.Tx.get_json(path <> "/" <> filename)
+    {:ok, utxos_map} = SB.Tx.get_json(path <> "/" <> filename)
+    Logger.debug("UTXOS map: " <> inspect(utxos_map))
     utxo_keys = Map.keys(utxos_map)
+    Logger.debug("UTXO keys: " <> inspect(utxo_keys))
 
-    utxos = create_utxos([], utxos_map, utxo_keys, 0, amount)
+    utxos = [utxos_map]
+    # create_utxos([], utxos_map, utxo_keys, 0, amount)
+    Logger.debug("UTXOS: " <> inspect(utxos))
 
     tx_block =
-      SB.Tx.create_transaction_block(state.node_id, utxos, receiver_bitcoinaddr_pubkey, amount)
+      SB.Tx.create_transaction_block(
+        node_id,
+        utxos,
+        receiver_bitcoinaddr_pubkey,
+        amount,
+        state.secret_key,
+        state.public_key
+      )
+
+    Logger.debug("Created tx block: " <> inspect(tx_block))
 
     # Publish transaction
     publish_transaction(tx_block)
@@ -163,6 +183,7 @@ defmodule SB.Wallet do
         map
       end
 
+    # Logger.debug("Tx hash is an atom: " <> inspect(Map.put(map, tx.hash, tx)))
     :ets.insert(:ets_trans_repo, {:new_tranx, Map.put(map, tx.hash, tx)})
 
     SB.Node.get_miners()

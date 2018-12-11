@@ -10,10 +10,16 @@ defmodule SBTest do
   end
 
   @tag timeout: 100_000_000
-  test "start network" do
+  test "start network and perform coinbase tx" do
     perform_test()
-    perform_tx_test()
+    perform_coinbase_tx_test()
   end
+
+  # @tag timeout: 100_000_000
+  # test "start network and perform regular tx" do
+  #   perform_test()
+  #   perform_tx_test()
+  # end
 
   defp perform_test() do
     SB.Master.init_network()
@@ -61,6 +67,73 @@ defmodule SBTest do
       "Amount*100000000 and balance: " <>
         inspect(amount * 100_000_000) <> "  " <> inspect(balance)
     )
+
+    # Get the list of wallet pids and create a transaction for one of those wallets
+    receiver_wallet_pid =
+      SB.Master.get_wallet_pids()
+      |> List.delete(wallet_pid)
+      |> List.first()
+
+    receiver_bitcoinaddr_pubkey =
+      wallet_state.public_key
+      |> SB.CryptoHandle.generate_address()
+      |> Base.encode16()
+
+    response =
+      GenServer.call(
+        wallet_pid,
+        {:create_transaction, amount * 10, receiver_wallet_pid, receiver_bitcoinaddr_pubkey}
+      )
+
+    assert response == :ok
+  end
+
+  defp perform_coinbase_tx_test() do
+    # Process.sleep(1000_000)
+    # SB.Master.wait_till_genesis_coins_mined()
+
+    amount = 0.1
+    wallet_pid = SB.Master.perform_tranx(amount)
+
+    Logger.debug(
+      "Call to get wallet state: " <> inspect(GenServer.call(wallet_pid, :get_state_info))
+    )
+
+    wallet_state = GenServer.call(wallet_pid, :get_state_info)
+
+    owner_pid = wallet_state.owner_pid
+    owner_state = GenServer.call(owner_pid, :get_state)
+
+    # Process.sleep(20000)
+
+    block = check_for_block_in_state(owner_pid, owner_state.block.block_id)
+    Logger.debug("Block test after coinbase: " <> inspect(block))
+
+    # TODO Improve assertion
+    {:ok, balance} = GenServer.call(wallet_pid, :get_balance)
+
+    Logger.debug(
+      "Amount*100000000 and balance: " <>
+        inspect(amount * 100_000_000) <> "  " <> inspect(balance)
+    )
+
+    Process.sleep(30000)
+    # Get the list of wallet pids and create a transaction for one of those wallets
+    receiver_wallet_pid =
+      SB.Master.get_wallet_pids()
+      |> List.delete(wallet_pid)
+      |> List.first()
+
+    receiver_bitcoinaddr_pubkey =
+      wallet_state.public_key
+      |> SB.CryptoHandle.generate_address()
+      |> Base.encode16()
+
+    response =
+      GenServer.call(
+        wallet_pid,
+        {:create_transaction, amount * 0.01, receiver_wallet_pid, receiver_bitcoinaddr_pubkey}
+      )
 
     assert balance == amount * 100_000_000 && block != nil
   end

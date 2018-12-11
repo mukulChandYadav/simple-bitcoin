@@ -150,11 +150,18 @@ defmodule SB.Tx do
       "ffffffff"
       |> String.upcase()
 
-    for utxo <- utxos do
-      # Logger.debug("Current UTXO: " <> inspect(utxo))
+    Logger.debug("UTXOS for input: " <> inspect(utxos))
 
+    for utxo <- utxos do
+      Logger.debug("Current UTXO: " <> inspect(utxo))
+
+      outpoint_hash = Map.keys(utxo) |> List.first()
+      outpoint_index = Map.keys(utxo[outpoint_hash]) |> List.first()
+      signature_script = utxo[outpoint_hash][outpoint_index]["scriptPubKey"]
+
+      # pk_script = utxo["scriptPubKey"]
       script_len =
-        utxo[:scriptPubKey]
+        signature_script
         |> Binary.from_hex()
         |> byte_size()
         |> to_string()
@@ -167,10 +174,6 @@ defmodule SB.Tx do
         end
 
       # Logger.debug("Script len of current input's pubKeyScript: " <> inspect(script_len))
-
-      outpoint_hash = utxo[:hash]
-      outpoint_index = to_string(utxo[:out_index])
-      signature_script = utxo[:scriptPubKey]
 
       # Logger.debug("Outpoint hash: " <> inspect(outpoint_hash))
       # Logger.debug("Outpoint index: " <> inspect(outpoint_index))
@@ -191,7 +194,9 @@ defmodule SB.Tx do
     value = change_output[:value]
     scriptPubKey = change_output[:scriptPubKey]
 
-    trans_hash = Map.keys(tx) |> List.first()
+    trans_hash = tx[:hash]
+    # Map.keys(tx) |> List.first()
+    Logger.debug("L0 key : " <> inspect(trans_hash))
     out_index = "00000001"
 
     utxo_lvl_2 =
@@ -203,6 +208,8 @@ defmodule SB.Tx do
     utxo = Map.put(%{}, trans_hash, utxo_lvl_1)
 
     # content = elem(utxo, 1)
+
+    Logger.debug("Writing for sender: " <> inspect(utxo))
     {:ok, content} = Poison.encode(utxo)
 
     path = Path.absname("./lib/data/")
@@ -234,6 +241,7 @@ defmodule SB.Tx do
 
         utxo = Map.put(%{}, trans_hash, utxo_lvl_1)
 
+        Logger.debug("Writing for reciever: " <> inspect(utxo))
         {:ok, content} = Poison.encode(utxo)
         content
       else
@@ -249,11 +257,11 @@ defmodule SB.Tx do
     File.write!(path <> "/" <> filename, content)
   end
 
-  def create_transaction_block(_, utxos, _, _) when utxos == [] do
+  def create_transaction_block(_, utxos, _, _, _, _) when utxos == [] do
     false
   end
 
-  def create_transaction_block(node_id, utxos, receiver_bc_addr, amount) do
+  def create_transaction_block(node_id, utxos, receiver_bc_addr, amount, private_key, public_key) do
     Logger.debug("---------Creating Transaction-----------")
 
     # transaction = (version <> tx_in_count <> tx_in <> tx_out_count <> tx_out <> lock_time <> sigHash)
@@ -269,23 +277,27 @@ defmodule SB.Tx do
 
     input_values =
       for {_, out_index_map} <- input_utxo do
+        Logger.debug("out index map: " <> inspect(out_index_map))
+
         balance =
           Enum.reduce(out_index_map, {}, fn {k, v}, acc ->
             curr_balance =
-              v[:value]
+              v["value"]
               |> String.to_integer(16)
 
-            debit =
-              amount
-              |> String.to_integer(16)
+            debit = amount
+            # |> String.to_integer(16)
 
-            scriptPubkey = out_index_map[:scriptPubKey]
+            scriptPubkey = v["scriptPubKey"]
+            Logger.debug("scriptPubKey: " <> inspect(scriptPubkey))
             acc = Tuple.insert_at(acc, 0, scriptPubkey)
             acc = Tuple.insert_at(acc, 0, curr_balance - debit)
 
             acc
           end)
       end
+
+    Logger.debug("Input values: " <> inspect(input_values))
 
     {remaining_balance, change_scriptPubKey} =
       input_values
@@ -339,14 +351,26 @@ defmodule SB.Tx do
       amount
       |> Integer.to_string(16)
 
+    pad = String.duplicate("0", 16 - String.length(amount))
+
     amount =
-      if String.length(amount) == 1 do
-        "0" <> amount
+      if String.length(amount) < 16 do
+        pad <> amount
       else
         amount
       end
 
     # Logger.debug("Amount: " <> inspect(amount))
+
+    remaining_balance = remaining_balance |> Integer.to_string(16)
+    pad = String.duplicate("0", 16 - String.length(remaining_balance))
+
+    remaining_balance =
+      if String.length(remaining_balance) < 16 do
+        pad <> remaining_balance
+      else
+        remaining_balance
+      end
 
     outputs =
       outputs ++
@@ -434,18 +458,18 @@ defmodule SB.Tx do
 
     path = Path.absname("./lib/data/") <> node_id <> "keys.json"
 
-    {:ok, keys_map} =
-      path
-      |> get_json
+    # {:ok, keys_map} =
+    #   path
+    #   |> get_json
 
     # Logger.debug("Keys map: " <> inspect(keys_map))
 
     pid = node_id
     # #Logger.debug("Finding Pvt key for pid iter: " <> inspect(pid))
-    private_key = keys_map[pid]["private_key"]
+    # private_key = keys_map[pid]["private_key"]
     # #Logger.debug("Pvt key in iter: " <> inspect(private_key))
 
-    public_key = keys_map[pid]["public_key"]
+    # public_key = keys_map[pid]["public_key"]
     # #Logger.debug("Pub key in iter: " <> inspect(public_key))
 
     scriptSigs =
@@ -471,7 +495,7 @@ defmodule SB.Tx do
           input
           |> generate_input_for_hash()
 
-        # Logger.debug("Input for hash in iteration: " <> inspect(input_for_hash))
+        Logger.debug("Input for hash in iteration: " <> inspect(input_for_hash))
 
         {:ok, binary_transaction} =
           (version <> num_inputs <> input_for_hash <> num_outputs <> tx_out)
@@ -551,6 +575,7 @@ defmodule SB.Tx do
       |> SB.CryptoHandle.hash(:sha256)
       |> Base.encode16()
 
+    Logger.debug("Create_tx block: " <> inspect(Map.put(tx, :hash, tx_hash)))
     Map.put(tx, :hash, tx_hash)
   end
 
@@ -621,16 +646,13 @@ defmodule SB.Tx do
 
     pub_key_hash =
       public_key
-      |> Base.encode16()
-      |> string_slice(2, -9)
+      |> SB.CryptoHandle.generate_public_hash_hex()
 
     #      |> SB.CryptoHandle.generate_address()
 
     # Logger.debug("pk_hash: " <> inspect(pub_key_hash))
 
-    pk_script =
-      ("76a914" <> pub_key_hash <> "88ac")
-      |> String.upcase()
+    pk_script = "76A914" <> pub_key_hash <> "88AC"
 
     # Logger.debug("pk_script_: " <> inspect(pk_script))
 

@@ -64,10 +64,16 @@ defmodule SB.Master do
   end
 
   def wait_till_genesis_coins_mined() do
-    pid_list = :ets.foldl(fn {hash, w_pid}, wallet_pid_list -> List.insert_at(wallet_pid_list, -1, w_pid) end, [], :ets_wallet_addrs)
+    pid_list =
+      :ets.foldl(
+        fn {hash, w_pid}, wallet_pid_list -> List.insert_at(wallet_pid_list, -1, w_pid) end,
+        [],
+        :ets_wallet_addrs
+      )
 
     num_wallets_above_threshold = Enum.reduce(pid_list, 0, &SB.Master.acc_wallet_threshold/2)
-    if(num_wallets_above_threshold < length pid_list)do
+
+    if(num_wallets_above_threshold < length(pid_list)) do
       Process.sleep(1000)
       wait_till_genesis_coins_mined()
     end
@@ -75,11 +81,20 @@ defmodule SB.Master do
 
   def acc_wallet_threshold(w_pid, acc) do
     bal = GenServer.call(w_pid, :get_balance)
+
     if(bal > 300_000_000) do
       acc + 1
     else
       acc
     end
+  end
+
+  def get_wallet_pids do
+    :ets.foldl(
+      fn {hash, w_pid}, wallet_pid_list -> List.insert_at(wallet_pid_list, -1, w_pid) end,
+      [],
+      :ets_wallet_addrs
+    )
   end
 
   def perform_tranx(amount) do
@@ -91,5 +106,4 @@ defmodule SB.Master do
     GenServer.call(w_pid, {:create_coinbase_transaction, amount})
     w_pid
   end
-
 end
