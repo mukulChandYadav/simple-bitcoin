@@ -52,7 +52,7 @@ defmodule SB.Master do
     Logger.debug("Init network")
 
     # 8
-    num_miners = 3
+    num_miners = 100
 
     for x <- 1..num_miners do
       {:ok, node_pid} =
@@ -80,7 +80,7 @@ defmodule SB.Master do
   end
 
   def acc_wallet_threshold(w_pid, acc) do
-    bal = GenServer.call(w_pid, :get_balance)
+    bal = GenServer.call(w_pid, :get_balance, :infinity)
 
     if(bal > 300_000_000) do
       acc + 1
@@ -103,7 +103,7 @@ defmodule SB.Master do
     # wallet_state = GenServer.call(w_pid, :get_state_info)
 
     Logger.debug("Perform tx called and calling coinbase with args: " <> inspect(w_pid))
-    GenServer.call(w_pid, {:create_coinbase_transaction, amount})
+    GenServer.call(w_pid, {:create_coinbase_transaction, amount}, :infinity)
     w_pid
   end
 end

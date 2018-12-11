@@ -200,14 +200,14 @@ defmodule SB.Wallet do
     # Assuming last output is change output back to sender
     sender_wallet_addr_hash = List.last(new_tx.outputs).scriptPubKey
     wallet_pid = lookup_wallet_pid(sender_wallet_addr_hash)
-    GenServer.call(wallet_pid, {:update_wallet_sender, new_tx})
+    GenServer.call(wallet_pid, {:update_wallet_sender, new_tx}, :infinity)
 
     # Assuming first output is output back to receiver
     {num_outputs, _} = Integer.parse(new_tx.num_outputs)
     Logger.debug("Number of Outputs: " <> inspect(num_outputs))
     {:ok, output} = Enum.fetch(new_tx.outputs, 0)
     wallet_pid = lookup_wallet_pid(output.scriptPubKey)
-    GenServer.call(wallet_pid, {:update_wallet_receiver, new_tx})
+    GenServer.call(wallet_pid, {:update_wallet_receiver, new_tx}, :infinity)
 
     Logger.debug("End of output" <> inspect(num_outputs))
   end

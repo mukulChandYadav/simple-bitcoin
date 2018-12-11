@@ -53,7 +53,7 @@ defmodule SB.Node do
       })
 
     # #Logger.error("wallet -#{inspect  GenServer.call(wallet_pid, :get_state_info)}")
-    wallet_state = GenServer.call(wallet_pid, :get_state_info)
+    wallet_state = GenServer.call(wallet_pid, :get_state_info, :infinity)
     node_state = put_in(node_state.wallet, wallet_state)
 
     # Create UTXO file for this node
@@ -112,7 +112,7 @@ defmodule SB.Node do
       end
 
     # TODO: Change to Wallet UTXO value threshold
-    {:ok, utxo_satoshis} = GenServer.call(state.wallet.wallet_pid, :get_balance)
+    {:ok, utxo_satoshis} = GenServer.call(state.wallet.wallet_pid, :get_balance, :infinity)
 
     Logger.debug("satoshis in wallet: " <> inspect(utxo_satoshis))
 
@@ -152,7 +152,8 @@ defmodule SB.Node do
       ) do
     GenServer.call(
       state.wallet.wallet_pid,
-      {:create_transaction, amount, receiver_pid, receiver_bitcoinaddr_pubkey}
+      {:create_transaction, amount, receiver_pid, receiver_bitcoinaddr_pubkey},
+      :infinity
     )
 
     {:reply, :ok, state}
